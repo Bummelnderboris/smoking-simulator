@@ -22,25 +22,35 @@ export class StuffingSystem {
     }
 
     // Start a new stuffing sequence
-    start(drunkLevel = 0) {
+    start(drunkLevel = 0, isGamingMode = false, difficultyConfig = null) {
         this.reset();
         this.isActive = true;
 
-        // Generate random sequence - scales gently with drunk level
-        // Base 4, +1 at 50% drunk, +2 at 100% drunk, max 6 keys
-        const extraKeys = Math.floor(drunkLevel / 50);
-        const length = Math.min(6, GAME_CONFIG.STUFFING_SEQUENCE_LENGTH + extraKeys);
-        this.sequence = [];
+        let length, timeLimit;
 
+        if (isGamingMode && difficultyConfig) {
+            // Gaming mode: Difficulty scales with level, not drunk
+            length = difficultyConfig.stuffingKeys;
+            // Time scales down with difficulty
+            timeLimit = GAME_CONFIG.STUFFING_TIME_LIMIT * difficultyConfig.stuffingTime;
+        } else {
+            // Hartz IV mode: Scales with drunk level (original behavior)
+            const extraKeys = Math.floor(drunkLevel / 50);
+            length = Math.min(6, GAME_CONFIG.STUFFING_SEQUENCE_LENGTH + extraKeys);
+            // Adjust time - gentler penalty (max 1.5 second reduction)
+            const timePenalty = Math.min(1500, drunkLevel * 15);
+            timeLimit = GAME_CONFIG.STUFFING_TIME_LIMIT - timePenalty;
+        }
+
+        // Generate random sequence
+        this.sequence = [];
         for (let i = 0; i < length; i++) {
             this.sequence.push(randomChoice(KEYS.STUFF_KEYS));
         }
 
-        // Adjust time - gentler penalty (max 1.5 second reduction)
-        const timePenalty = Math.min(1500, drunkLevel * 15);
-        this.timeRemaining = GAME_CONFIG.STUFFING_TIME_LIMIT - timePenalty;
+        this.timeRemaining = timeLimit;
 
-        // Always allow 3 mistakes - scrambling is punishment enough
+        // Always allow 3 mistakes
         this.maxMistakes = 3;
     }
 

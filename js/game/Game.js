@@ -1,4 +1,4 @@
-import { GAME_CONFIG, GAME_STATES, DEATH_CAUSES, KEYS } from '../utils/constants.js';
+import { GAME_CONFIG, GAME_STATES, GAME_MODES, DEATH_CAUSES, KEYS } from '../utils/constants.js';
 import { Player } from './Player.js';
 import { InputHandler } from './InputHandler.js';
 import { StuffingSystem } from '../systems/StuffingSystem.js';
@@ -7,6 +7,7 @@ import { AudioSystem } from '../systems/AudioSystem.js';
 import { AchievementSystem } from '../systems/AchievementSystem.js';
 import { LeaderboardSystem } from '../systems/LeaderboardSystem.js';
 import { DayNightSystem } from '../systems/DayNightSystem.js';
+import { DifficultySystem } from '../systems/DifficultySystem.js';
 
 export class Game {
     constructor(canvas) {
@@ -23,6 +24,10 @@ export class Game {
         this.achievements = new AchievementSystem();
         this.leaderboard = new LeaderboardSystem();
         this.dayNight = new DayNightSystem();
+        this.difficulty = new DifficultySystem();
+
+        // Game mode
+        this.gameMode = GAME_MODES.HARTZ_IV;
 
         // Timing
         this.lastTime = 0;
@@ -108,6 +113,9 @@ export class Game {
             case GAME_STATES.MENU:
                 this.updateMenu();
                 break;
+            case GAME_STATES.MODE_SELECT:
+                this.updateModeSelect();
+                break;
             case GAME_STATES.PLAYING:
                 this.updatePlaying(deltaTime);
                 break;
@@ -125,7 +133,24 @@ export class Game {
 
     updateMenu() {
         if (this.input.isJustPressed(KEYS.START) || this.input.isJustPressed('enter')) {
+            this.state = GAME_STATES.MODE_SELECT;
+        }
+    }
+
+    updateModeSelect() {
+        // H for Hartz IV mode
+        if (this.input.isJustPressed('h')) {
+            this.gameMode = GAME_MODES.HARTZ_IV;
             this.startGame();
+        }
+        // G for Gaming mode
+        if (this.input.isJustPressed('g')) {
+            this.gameMode = GAME_MODES.GAMING;
+            this.startGame();
+        }
+        // Escape to go back to menu
+        if (this.input.isJustPressed('escape')) {
+            this.state = GAME_STATES.MENU;
         }
     }
 
@@ -134,6 +159,7 @@ export class Game {
         this.stuffing.reset();
         this.achievements.resetSession();
         this.dayNight = new DayNightSystem();
+        this.difficulty.reset(this.gameMode);
         this.state = GAME_STATES.PLAYING;
         this.deathCause = '';
 
@@ -149,19 +175,34 @@ export class Game {
 
         await this.audio.resume();
         this.audio.startMusic();
+        this.audio.setTempo(1.0); // Reset tempo
     }
 
     updatePlaying(deltaTime) {
         // Check for hiccup before updating (for visual effect)
         const wasHiccuping = this.player.isHiccuping;
 
-        // Update player
-        this.player.update(deltaTime);
+        // Update difficulty system (Gaming mode progression)
+        this.difficulty.update(this.player.timeAlive);
+
+        // Check for level-up in Gaming mode
+        if (this.difficulty.didLevelUp()) {
+            this.audio.playLevelUpSound();
+            this.renderer.triggerLevelUpFlash();
+            this.renderer.addShake(8);
+            // Update music tempo
+            this.audio.setTempo(this.difficulty.getMusicTempo());
+            this.difficulty.clearLevelUpFlag();
+        }
+
+        // Update player with difficulty multiplier
+        const difficultyMult = this.difficulty.getMultiplier();
+        this.player.update(deltaTime, difficultyMult, this.difficulty.isGamingMode());
 
         // Update day/night cycle
         this.dayNight.update(this.player.timeAlive);
 
-        // Update audio drunk effects
+        // Update audio drunk effects (only cosmetic in Gaming mode)
         this.audio.setDrunkLevel(this.player.drunkenness);
 
         // Update achievements
@@ -176,10 +217,11 @@ export class Game {
             }
         }
 
-        // Drunk effect: Random control inversion at 80%+
+        // Drunk effect: Random control inversion at 80%+ (Hartz IV mode only)
         // Only trigger if not already inverted to prevent stacking
         const now = performance.now();
-        if (this.player.drunkenness >= 80 &&
+        if (!this.difficulty.isGamingMode() &&
+            this.player.drunkenness >= 80 &&
             now - this.lastInversionCheck > this.inversionCooldown &&
             !this.renderer.isControlsInverted()) {
             this.lastInversionCheck = now;
@@ -189,18 +231,24 @@ export class Game {
             }
         }
 
-        // Hiccup just started
+        // Hiccup just started (Hartz IV mode only - cosmetic in Gaming)
         if (this.player.isHiccuping && !wasHiccuping) {
             this.audio.playHiccupSound();
-            this.renderer.addShake(5);
+            if (!this.difficulty.isGamingMode()) {
+                this.renderer.addShake(5);
+            }
         }
 
-        // Handle smoking (blocked during hiccup)
-        // Check for inverted controls
-        const smokeKey = this.renderer.isControlsInverted() ? KEYS.DRINK : KEYS.SMOKE;
-        const drinkKey = this.renderer.isControlsInverted() ? KEYS.SMOKE : KEYS.DRINK;
+        // Handle smoking (blocked during hiccup in Hartz IV mode only)
+        // Control inversion only in Hartz IV mode
+        const isGaming = this.difficulty.isGamingMode();
+        const smokeKey = (!isGaming && this.renderer.isControlsInverted()) ? KEYS.DRINK : KEYS.SMOKE;
+        const drinkKey = (!isGaming && this.renderer.isControlsInverted()) ? KEYS.SMOKE : KEYS.DRINK;
 
-        if (!this.player.isHiccuping) {
+        // In Gaming mode, hiccups don't block actions
+        const canAct = isGaming || !this.player.isHiccuping;
+
+        if (canAct) {
             if (this.input.isJustPressed(smokeKey) || this.input.isHeld(smokeKey)) {
                 if (this.player.smoke()) {
                     this.audio.playSmokeSound();
@@ -243,7 +291,11 @@ export class Game {
 
     startStuffing() {
         this.state = GAME_STATES.STUFFING;
-        this.stuffing.start(this.player.drunkenness);
+        this.stuffing.start(
+            this.player.drunkenness,
+            this.difficulty.isGamingMode(),
+            this.difficulty.getLevelConfig()
+        );
         this.stuffingStartTime = performance.now();
     }
 
@@ -251,7 +303,8 @@ export class Game {
         this.stuffing.update(deltaTime);
 
         // Player still takes damage while stuffing!
-        this.player.update(deltaTime);
+        const difficultyMult = this.difficulty.getMultiplier();
+        this.player.update(deltaTime, difficultyMult, this.difficulty.isGamingMode());
 
         // Continue day/night cycle
         this.dayNight.update(this.player.timeAlive);
@@ -262,8 +315,10 @@ export class Game {
         // Handle key presses
         const keyPressed = this.input.getStuffingKeyPressed();
         if (keyPressed) {
-            // Maybe scramble the key if drunk
-            const actualKey = this.input.getScrambledKey(keyPressed);
+            // Only scramble keys in Hartz IV mode (no RNG in Gaming mode)
+            const actualKey = this.difficulty.isGamingMode()
+                ? keyPressed
+                : this.input.getScrambledKey(keyPressed);
             this.stuffing.processKey(actualKey, this.player.drunkenness);
 
             // Play feedback sound
@@ -425,6 +480,10 @@ export class Game {
                 }
                 break;
 
+            case GAME_STATES.MODE_SELECT:
+                this.renderer.drawModeSelect();
+                break;
+
             case GAME_STATES.PLAYING:
             case GAME_STATES.STUFFING:
                 this.renderGame();
@@ -496,20 +555,31 @@ export class Game {
         // Apply enhanced drunk effects (double vision, color shift)
         this.renderer.applyDrunkEffects(this.player.drunkenness);
 
+        // Gaming mode: Draw speed lines based on intensity
+        if (this.difficulty.isGamingMode()) {
+            this.renderer.drawSpeedLines(this.difficulty.getIntensity());
+        }
+
         // Reset screen effects before UI
         this.renderer.resetScreenEffects();
 
         // Draw HUD (not affected by drunk wobble)
-        this.renderer.drawHUD(this.player);
+        // Pass difficulty info for Gaming mode display
+        this.renderer.drawHUD(this.player, this.difficulty);
 
         // Draw time of day indicator
         this.renderer.drawTimeIndicator(this.dayNight.getPhaseDisplayName());
 
-        // Draw inverted controls warning if active
-        this.renderer.drawInvertedWarning();
+        // Draw inverted controls warning if active (Hartz IV only)
+        if (!this.difficulty.isGamingMode()) {
+            this.renderer.drawInvertedWarning();
+        }
 
         // Draw achievement notification if any
         this.renderer.drawAchievementNotification();
+
+        // Draw level-up flash if active
+        this.renderer.drawLevelUpFlash();
 
         // CRT effect on top
         this.renderer.drawCRTEffect();

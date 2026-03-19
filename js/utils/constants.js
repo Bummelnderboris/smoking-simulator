@@ -83,12 +83,28 @@ export const KEYS = {
 // Game states
 export const GAME_STATES = {
     MENU: 'menu',
+    MODE_SELECT: 'mode_select',
     PLAYING: 'playing',
     STUFFING: 'stuffing',
     PAUSED: 'paused',
     GAME_OVER: 'game_over',
     NAME_ENTRY: 'name_entry'
 };
+
+// Game modes
+export const GAME_MODES = {
+    HARTZ_IV: 'hartz_iv',
+    GAMING: 'gaming'
+};
+
+// Difficulty levels for Gaming mode (arcade progression)
+export const DIFFICULTY_LEVELS = [
+    { level: 1, name: '1st', timeThreshold: 0, multiplier: 1.0, tempo: 1.0, stuffingTime: 1.0, stuffingKeys: 4 },
+    { level: 2, name: '2nd', timeThreshold: 30, multiplier: 1.3, tempo: 1.1, stuffingTime: 0.9, stuffingKeys: 4 },
+    { level: 3, name: '3rd', timeThreshold: 60, multiplier: 1.6, tempo: 1.25, stuffingTime: 0.8, stuffingKeys: 5 },
+    { level: 4, name: '4th', timeThreshold: 120, multiplier: 2.0, tempo: 1.4, stuffingTime: 0.7, stuffingKeys: 5 },
+    { level: 5, name: '5th', timeThreshold: 180, multiplier: 2.5, tempo: 1.6, stuffingTime: 0.6, stuffingKeys: 6 }
+];
 
 // Death causes
 export const DEATH_CAUSES = {

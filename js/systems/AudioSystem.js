@@ -9,7 +9,9 @@ export class AudioSystem {
         this.musicPlaying = false;
         this.currentNoteIndex = 0;
         this.nextNoteTime = 0;
+        this.baseTempo = 120;
         this.tempo = 120;
+        this.tempoMultiplier = 1.0; // For Gaming mode speed up
         this.drunkLevel = 0;
 
         // 80s style background music - simple looping melody
@@ -213,6 +215,30 @@ export class AudioSystem {
         this.playTone(800, 0.1, 'square');
     }
 
+    playLevelUpSound() {
+        if (!this.initialized) return;
+
+        // Exciting level up fanfare
+        const notes = ['C4', 'E4', 'G4', 'C5', 'E5'];
+        notes.forEach((note, i) => {
+            setTimeout(() => {
+                this.playNote(note, 0.12, 'square');
+            }, i * 60);
+        });
+        // Final chord
+        setTimeout(() => {
+            this.playNote('C5', 0.3, 'triangle');
+            this.playNote('E5', 0.3, 'triangle');
+            this.playNote('G4', 0.3, 'triangle');
+        }, 350);
+    }
+
+    // Set tempo multiplier (for Gaming mode progression)
+    setTempo(multiplier) {
+        this.tempoMultiplier = multiplier;
+        this.tempo = this.baseTempo * this.tempoMultiplier;
+    }
+
     // Background music scheduler
     startMusic() {
         if (!this.initialized || this.musicPlaying) return;
@@ -231,11 +257,11 @@ export class AudioSystem {
     setDrunkLevel(level) {
         this.drunkLevel = level;
 
-        // Adjust tempo slightly when drunk
+        // Adjust tempo slightly when drunk (adds wavering to multiplied tempo)
         if (level >= 85) {
-            this.tempo = 120 + Math.sin(Date.now() / 1000) * 10; // Wavering tempo
+            this.tempo = this.baseTempo * this.tempoMultiplier + Math.sin(Date.now() / 1000) * 10;
         } else {
-            this.tempo = 120;
+            this.tempo = this.baseTempo * this.tempoMultiplier;
         }
     }
 

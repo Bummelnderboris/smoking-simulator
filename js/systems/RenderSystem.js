@@ -31,6 +31,10 @@ export class RenderSystem {
         this.controlsInverted = false;
         this.invertedTimer = 0;
         this.colorCycleOffset = 0;
+
+        // Gaming mode effects
+        this.levelUpFlashTimer = 0;
+        this.speedLineOffset = 0;
     }
 
     clear() {
@@ -72,6 +76,14 @@ export class RenderSystem {
 
         // Update color cycle for extreme drunk
         this.colorCycleOffset += deltaTime * 0.001;
+
+        // Update level-up flash
+        if (this.levelUpFlashTimer > 0) {
+            this.levelUpFlashTimer -= deltaTime;
+        }
+
+        // Update speed line animation
+        this.speedLineOffset += deltaTime * 0.5;
     }
 
     // Set day/night colors
@@ -93,6 +105,11 @@ export class RenderSystem {
 
     isControlsInverted() {
         return this.controlsInverted;
+    }
+
+    // Trigger level-up flash (Gaming mode)
+    triggerLevelUpFlash() {
+        this.levelUpFlashTimer = 500; // 500ms flash
     }
 
     addShake(intensity) {
@@ -703,7 +720,7 @@ export class RenderSystem {
     }
 
     // Draw HUD
-    drawHUD(player) {
+    drawHUD(player, difficulty = null) {
         const padding = 20;
         const meterWidth = 150;
         const meterHeight = 20;
@@ -759,6 +776,15 @@ export class RenderSystem {
         this.ctx.font = '16px monospace';
         this.ctx.fillText(`TIME: ${formatTime(player.timeAlive)}`, this.width / 2, padding + 45);
 
+        // Gaming mode: Draw gear indicator
+        if (difficulty && difficulty.isGamingMode()) {
+            this.drawGearIndicator(
+                difficulty.getLevel(),
+                difficulty.getLevelName(),
+                difficulty.getScoreMultiplier()
+            );
+        }
+
         // Hiccup indicator
         if (player.isHiccuping) {
             this.ctx.fillStyle = '#ffcc00';
@@ -770,11 +796,15 @@ export class RenderSystem {
             this.ctx.fillText('*HIC*', this.width / 2 + shakeX, this.height / 2 - 50 + shakeY);
         }
 
-        // Control hints (bottom)
+        // Control hints (bottom) - different for each mode
         this.ctx.font = '12px monospace';
         this.ctx.fillStyle = '#888';
         this.ctx.textAlign = 'center';
-        this.ctx.fillText('[SPACE] Smoke  |  [B] Drink Beer  |  [WASD] Stuff Cigarettes', this.width / 2, this.height - 15);
+        if (difficulty && difficulty.isGamingMode()) {
+            this.ctx.fillText('[SPACE] Smoke  |  [B] Drink  |  [WASD] Stuff  |  GAMING MODE', this.width / 2, this.height - 15);
+        } else {
+            this.ctx.fillText('[SPACE] Smoke  |  [B] Drink Beer  |  [WASD] Stuff Cigarettes', this.width / 2, this.height - 15);
+        }
     }
 
     // Draw menu screen
@@ -1289,5 +1319,187 @@ export class RenderSystem {
         this.ctx.fillStyle = '#666';
         this.ctx.font = '12px monospace';
         this.ctx.fillText('Your name will appear on the leaderboard', this.width / 2, boxY + 140);
+    }
+
+    // Draw mode selection screen
+    drawModeSelect() {
+        this.clear();
+
+        // Title
+        this.ctx.fillStyle = '#fff';
+        this.ctx.font = 'bold 36px monospace';
+        this.ctx.textAlign = 'center';
+        this.ctx.fillText('SELECT MODE', this.width / 2, 120);
+
+        // Hartz IV Mode box
+        const boxWidth = 320;
+        const boxHeight = 180;
+        const harzX = this.width / 2 - boxWidth - 20;
+        const gamingX = this.width / 2 + 20;
+        const boxY = 180;
+
+        // Hartz IV Mode
+        this.ctx.fillStyle = 'rgba(80, 60, 40, 0.8)';
+        this.ctx.fillRect(harzX, boxY, boxWidth, boxHeight);
+        this.ctx.strokeStyle = '#c9a959';
+        this.ctx.lineWidth = 3;
+        this.ctx.strokeRect(harzX, boxY, boxWidth, boxHeight);
+
+        this.ctx.fillStyle = '#c9a959';
+        this.ctx.font = 'bold 24px monospace';
+        this.ctx.fillText('HARTZ IV', harzX + boxWidth / 2, boxY + 40);
+
+        this.ctx.fillStyle = '#aaa';
+        this.ctx.font = '14px monospace';
+        this.ctx.fillText('Chill & Survive', harzX + boxWidth / 2, boxY + 70);
+
+        this.ctx.fillStyle = '#888';
+        this.ctx.font = '12px monospace';
+        const harzLines = [
+            '• Relaxed pace',
+            '• Drunk chaos effects',
+            '• Random key scrambling',
+            '• Control inversions',
+            '• Play forever (if skilled)'
+        ];
+        harzLines.forEach((line, i) => {
+            this.ctx.textAlign = 'left';
+            this.ctx.fillText(line, harzX + 20, boxY + 100 + i * 16);
+        });
+
+        this.ctx.fillStyle = '#ffcc00';
+        this.ctx.font = 'bold 16px monospace';
+        this.ctx.textAlign = 'center';
+        this.ctx.fillText('[H] to Select', harzX + boxWidth / 2, boxY + boxHeight - 15);
+
+        // Gaming Mode
+        this.ctx.fillStyle = 'rgba(40, 40, 80, 0.8)';
+        this.ctx.fillRect(gamingX, boxY, boxWidth, boxHeight);
+        this.ctx.strokeStyle = '#ff4444';
+        this.ctx.lineWidth = 3;
+        this.ctx.strokeRect(gamingX, boxY, boxWidth, boxHeight);
+
+        this.ctx.fillStyle = '#ff4444';
+        this.ctx.font = 'bold 24px monospace';
+        this.ctx.textAlign = 'center';
+        this.ctx.fillText('GAMING', gamingX + boxWidth / 2, boxY + 40);
+
+        this.ctx.fillStyle = '#aaa';
+        this.ctx.font = '14px monospace';
+        this.ctx.fillText('Arcade Racing', gamingX + boxWidth / 2, boxY + 70);
+
+        this.ctx.fillStyle = '#888';
+        this.ctx.font = '12px monospace';
+        const gamingLines = [
+            '• Progressive difficulty',
+            '• No RNG - pure skill',
+            '• Music speeds up',
+            '• Higher score multipliers',
+            '• How fast can you go?'
+        ];
+        gamingLines.forEach((line, i) => {
+            this.ctx.textAlign = 'left';
+            this.ctx.fillText(line, gamingX + 20, boxY + 100 + i * 16);
+        });
+
+        this.ctx.fillStyle = '#ff4444';
+        this.ctx.font = 'bold 16px monospace';
+        this.ctx.textAlign = 'center';
+        this.ctx.fillText('[G] to Select', gamingX + boxWidth / 2, boxY + boxHeight - 15);
+
+        // Back hint
+        this.ctx.fillStyle = '#666';
+        this.ctx.font = '12px monospace';
+        this.ctx.fillText('[ESC] Back to Menu', this.width / 2, this.height - 40);
+
+        this.drawCRTEffect();
+    }
+
+    // Draw speed lines for Gaming mode
+    drawSpeedLines(intensity) {
+        if (intensity <= 0) return;
+
+        const lineCount = Math.floor(intensity * 20) + 5;
+        const maxLength = 50 + intensity * 100;
+
+        this.ctx.strokeStyle = `rgba(255, 255, 255, ${intensity * 0.3})`;
+        this.ctx.lineWidth = 2;
+
+        for (let i = 0; i < lineCount; i++) {
+            // Seed based on index for stable positioning
+            const seed = (i * 1234.5678) % 1;
+            const side = i % 2; // Alternate sides
+
+            let x, y;
+            if (side === 0) {
+                // Left side
+                x = 20 + seed * 60;
+            } else {
+                // Right side
+                x = this.width - 20 - seed * 60;
+            }
+
+            // Y position with animation
+            const baseY = (i / lineCount) * this.height;
+            y = (baseY + this.speedLineOffset * (1 + intensity)) % this.height;
+
+            const lineLength = maxLength * (0.5 + seed * 0.5);
+
+            this.ctx.beginPath();
+            this.ctx.moveTo(x, y);
+            this.ctx.lineTo(x, y + lineLength);
+            this.ctx.stroke();
+        }
+    }
+
+    // Draw level-up flash effect
+    drawLevelUpFlash() {
+        if (this.levelUpFlashTimer <= 0) return;
+
+        const progress = this.levelUpFlashTimer / 500;
+        const alpha = progress * 0.4;
+
+        this.ctx.fillStyle = `rgba(255, 255, 100, ${alpha})`;
+        this.ctx.fillRect(0, 0, this.width, this.height);
+
+        // Show "LEVEL UP!" text during flash
+        if (progress > 0.3) {
+            this.ctx.fillStyle = `rgba(255, 255, 255, ${progress})`;
+            this.ctx.font = 'bold 48px monospace';
+            this.ctx.textAlign = 'center';
+            this.ctx.fillText('GEAR UP!', this.width / 2, this.height / 2 - 50);
+        }
+    }
+
+    // Draw gear indicator for Gaming mode
+    drawGearIndicator(level, levelName, scoreMultiplier) {
+        const x = this.width - 100;
+        const y = 100;
+
+        // Gear box background
+        this.ctx.fillStyle = 'rgba(40, 40, 60, 0.9)';
+        this.ctx.fillRect(x - 40, y - 30, 80, 70);
+
+        // Border color based on level
+        const colors = ['#888', '#88ff88', '#ffff88', '#ff8844', '#ff4444'];
+        this.ctx.strokeStyle = colors[level - 1] || '#fff';
+        this.ctx.lineWidth = 2;
+        this.ctx.strokeRect(x - 40, y - 30, 80, 70);
+
+        // Gear number
+        this.ctx.fillStyle = colors[level - 1] || '#fff';
+        this.ctx.font = 'bold 32px monospace';
+        this.ctx.textAlign = 'center';
+        this.ctx.fillText(levelName, x, y + 5);
+
+        // "GEAR" label
+        this.ctx.fillStyle = '#888';
+        this.ctx.font = '10px monospace';
+        this.ctx.fillText('GEAR', x, y - 18);
+
+        // Score multiplier
+        this.ctx.fillStyle = '#ffcc00';
+        this.ctx.font = 'bold 12px monospace';
+        this.ctx.fillText(`x${scoreMultiplier.toFixed(1)}`, x, y + 28);
     }
 }

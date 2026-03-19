@@ -39,7 +39,7 @@ export class Player {
         this.lastHiccup = 0;
     }
 
-    update(deltaTime) {
+    update(deltaTime, difficultyMultiplier = 1.0, isGamingMode = false) {
         const dt = deltaTime / 1000;
 
         // Cooldowns
@@ -50,13 +50,13 @@ export class Player {
             this.sipCooldown -= deltaTime;
         }
 
-        // Oxygen fills if not smoking
+        // Oxygen fills if not smoking (scales with difficulty in Gaming mode)
         if (!this.isSmoking) {
-            this.oxygen += GAME_CONFIG.OXYGEN_FILL_RATE * dt;
+            this.oxygen += GAME_CONFIG.OXYGEN_FILL_RATE * dt * difficultyMultiplier;
         }
 
-        // Drowsiness increases over time
-        this.drowsiness += GAME_CONFIG.DROWSINESS_FILL_RATE * dt;
+        // Drowsiness increases over time (scales with difficulty)
+        this.drowsiness += GAME_CONFIG.DROWSINESS_FILL_RATE * dt * difficultyMultiplier;
 
         // Drunkenness slowly decays
         if (this.drunkenness > 0) {
@@ -68,9 +68,10 @@ export class Player {
         this.drowsiness = clamp(this.drowsiness, 0, GAME_CONFIG.DROWSINESS_MAX);
         this.drunkenness = clamp(this.drunkenness, 0, GAME_CONFIG.DRUNKENNESS_MAX);
 
-        // Update stats
+        // Update stats (score scales with difficulty in Gaming mode)
         this.timeAlive += dt;
-        this.score += GAME_CONFIG.POINTS_PER_SECOND * dt;
+        const scoreMultiplier = isGamingMode ? (1 + (difficultyMultiplier - 1) * 0.5) : 1;
+        this.score += GAME_CONFIG.POINTS_PER_SECOND * dt * scoreMultiplier;
 
         // Hiccup system
         if (this.hiccupCooldown > 0) {
@@ -81,8 +82,8 @@ export class Player {
             this.isHiccuping = this.hiccupTimer > 0;
         }
 
-        // Random chance to hiccup based on drunk level
-        // Increased chance: ~5% per frame at 100% drunk (very noticeable)
+        // Random chance to hiccup based on drunk level (Hartz IV mode only affects gameplay)
+        // In Gaming mode, hiccups are cosmetic only
         if (this.drunkenness >= 40 && this.hiccupCooldown <= 0 && !this.isHiccuping) {
             const hiccupChance = (this.drunkenness - 40) / 1200;
             if (Math.random() < hiccupChance) {
