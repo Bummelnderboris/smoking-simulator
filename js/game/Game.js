@@ -205,9 +205,12 @@ export class Game {
         }
 
         // Handle starting to stuff (any WASD key)
-        const stuffKey = this.input.getStuffingKeyPressed();
-        if (stuffKey && this.player.queuedCigarettes < GAME_CONFIG.MAX_QUEUED_CIGARETTES) {
-            this.startStuffing();
+        // Check capacity FIRST to avoid consuming key press when at max capacity
+        if (this.player.queuedCigarettes < GAME_CONFIG.MAX_QUEUED_CIGARETTES) {
+            const stuffKey = this.input.getStuffingKeyPressed();
+            if (stuffKey) {
+                this.startStuffing();
+            }
         }
 
         // Check warnings

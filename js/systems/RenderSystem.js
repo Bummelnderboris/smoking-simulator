@@ -1087,18 +1087,24 @@ export class RenderSystem {
     applyDrunkEffects(drunkLevel) {
         if (drunkLevel < 50) return;
 
-        // Double vision effect (60%+)
+        // Double vision effect (60%+) - use offset colored overlays instead of drawImage
+        // (drawImage of canvas to itself causes performance issues)
         if (drunkLevel >= 60) {
             const intensity = (drunkLevel - 60) / 40;
-            const offset = intensity * 8;
-            this.ctx.globalAlpha = intensity * 0.3;
-            this.ctx.drawImage(this.canvas, offset, offset / 2);
+            const offset = intensity * 6;
+
+            // Create ghost effect with offset semi-transparent overlays
+            this.ctx.globalAlpha = intensity * 0.15;
+            this.ctx.fillStyle = '#ff8888';
+            this.ctx.fillRect(offset, offset / 2, this.width, this.height);
+            this.ctx.fillStyle = '#8888ff';
+            this.ctx.fillRect(-offset, -offset / 2, this.width, this.height);
             this.ctx.globalAlpha = 1;
         }
 
         // Color saturation/shift (50%+)
         if (drunkLevel >= 50) {
-            const intensity = (drunkLevel - 50) / 50 * 0.15;
+            const intensity = (drunkLevel - 50) / 50 * 0.12;
             // Warm color overlay
             this.ctx.fillStyle = `rgba(255, 200, 150, ${intensity})`;
             this.ctx.fillRect(0, 0, this.width, this.height);

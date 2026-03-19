@@ -27,21 +27,21 @@ export class StuffingSystem {
         this.isActive = true;
 
         // Generate random sequence - scales gently with drunk level
-        // Base 4, +1 at 33% drunk, +2 at 66% drunk, max 7 keys
-        const extraKeys = Math.floor(drunkLevel / 33);
-        const length = Math.min(7, GAME_CONFIG.STUFFING_SEQUENCE_LENGTH + extraKeys);
+        // Base 4, +1 at 50% drunk, +2 at 100% drunk, max 6 keys
+        const extraKeys = Math.floor(drunkLevel / 50);
+        const length = Math.min(6, GAME_CONFIG.STUFFING_SEQUENCE_LENGTH + extraKeys);
         this.sequence = [];
 
         for (let i = 0; i < length; i++) {
             this.sequence.push(randomChoice(KEYS.STUFF_KEYS));
         }
 
-        // Adjust time - gentler penalty, more time overall
-        const timePenalty = drunkLevel * 20;
+        // Adjust time - gentler penalty (max 1.5 second reduction)
+        const timePenalty = Math.min(1500, drunkLevel * 15);
         this.timeRemaining = GAME_CONFIG.STUFFING_TIME_LIMIT - timePenalty;
 
-        // Mistakes allowed: 3 normally, 2 when very drunk (75%+)
-        this.maxMistakes = drunkLevel >= 75 ? 2 : 3;
+        // Always allow 3 mistakes - scrambling is punishment enough
+        this.maxMistakes = 3;
     }
 
     // Process a key press

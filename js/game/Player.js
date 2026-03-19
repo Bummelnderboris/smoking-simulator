@@ -82,8 +82,9 @@ export class Player {
         }
 
         // Random chance to hiccup based on drunk level
+        // Increased chance: ~5% per frame at 100% drunk (very noticeable)
         if (this.drunkenness >= 40 && this.hiccupCooldown <= 0 && !this.isHiccuping) {
-            const hiccupChance = (this.drunkenness - 40) / 6000;
+            const hiccupChance = (this.drunkenness - 40) / 1200;
             if (Math.random() < hiccupChance) {
                 this.triggerHiccup();
             }
@@ -96,7 +97,7 @@ export class Player {
 
     triggerHiccup() {
         this.isHiccuping = true;
-        this.hiccupTimer = 300;
+        this.hiccupTimer = 400; // Slightly longer hiccup
         this.hiccupCooldown = 2000 + Math.random() * 3000;
         this.lastHiccup = performance.now();
         return true;
