@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smoking Simulator - Tile Table Edition (1987)</title>
+    <link rel="stylesheet" href="css/style.css">
+    <style>
+        /* Inline critical styles */
+        @font-face {
+            font-family: 'Press Start 2P';
+            src: local('Courier New');
+        }
+    </style>
+</head>
+<body>
+    <!-- Loading screen -->
+    <div class="loading">LOADING...</div>
+
+    <!-- CRT Monitor Frame -->
+    <div class="monitor">
+        <div class="screen-bezel">
+            <div class="canvas-container">
+                <canvas id="gameCanvas"></canvas>
+            </div>
+        </div>
+
+        <!-- Monitor decorations -->
+        <div class="monitor-brand">SMOKATRON 3000</div>
+        <div class="power-led"></div>
+        <div class="monitor-buttons">
+            <div class="monitor-button" title="Channel"></div>
+            <div class="monitor-button" title="Menu"></div>
+        </div>
+        <div class="knob-container">
+            <div class="knob" title="Brightness"></div>
+            <div class="knob" title="Volume"></div>
+        </div>
+    </div>
+
+    <!-- Mobile warning -->
+    <div class="mobile-warning">
+        Best played on desktop with keyboard
+    </div>
+
+    <!-- Game script -->
+    <script type="module" src="js/main.js"></script>
+</body>
+</html>
