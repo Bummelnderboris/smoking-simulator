@@ -107,6 +107,7 @@ export class AchievementSystem {
             reachedMaxDrunk: false,
             survivedAfterMaxDrunk: 0,
             maxOxygenReached: 0,
+            hit95Oxygen: false,
             survived95Oxygen: false,
             fastestStuff: Infinity,
             lastDrinkTime: 0
@@ -184,7 +185,13 @@ export class AchievementSystem {
             this.sessionStats.maxOxygenReached = player.oxygen;
         }
 
-        if (player.oxygen >= 95 && player.oxygen < 100) {
+        // Track if player hit 95%+ oxygen and then recovered (went back below 95)
+        if (player.oxygen >= 95) {
+            this.sessionStats.hit95Oxygen = true;
+        }
+
+        // If they hit 95%+ and then got back below 90%, they truly survived it
+        if (this.sessionStats.hit95Oxygen && player.oxygen < 90) {
             this.sessionStats.survived95Oxygen = true;
         }
 

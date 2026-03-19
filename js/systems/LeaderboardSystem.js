@@ -37,9 +37,49 @@ const FAKE_NAMES = [
 export class LeaderboardSystem {
     constructor() {
         this.entries = [];
-        this.playerName = 'YOU';
+        this.playerName = 'PLAYER';
         this.maxEntries = 10;
         this.load();
+        this.loadPlayerName();
+    }
+
+    loadPlayerName() {
+        try {
+            const saved = localStorage.getItem('smokingSimPlayerName');
+            if (saved) {
+                this.playerName = saved;
+            }
+        } catch (e) {
+            // Use default
+        }
+    }
+
+    savePlayerName() {
+        try {
+            localStorage.setItem('smokingSimPlayerName', this.playerName);
+        } catch (e) {
+            console.warn('Could not save player name');
+        }
+    }
+
+    setPlayerName(name) {
+        // Sanitize and limit name
+        const sanitized = name.trim().toUpperCase().slice(0, 12);
+        if (sanitized.length > 0) {
+            this.playerName = sanitized;
+            this.savePlayerName();
+            // Update existing player entries with new name
+            this.entries.forEach(e => {
+                if (e.isPlayer) {
+                    e.name = this.playerName;
+                }
+            });
+            this.save();
+        }
+    }
+
+    getPlayerName() {
+        return this.playerName;
     }
 
     load() {

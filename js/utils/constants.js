@@ -86,7 +86,8 @@ export const GAME_STATES = {
     PLAYING: 'playing',
     STUFFING: 'stuffing',
     PAUSED: 'paused',
-    GAME_OVER: 'game_over'
+    GAME_OVER: 'game_over',
+    NAME_ENTRY: 'name_entry'
 };
 
 // Death causes

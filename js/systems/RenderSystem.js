@@ -882,8 +882,13 @@ export class RenderSystem {
         this.ctx.fillStyle = '#fff';
         const blink = Math.sin(this.time / 300) > 0;
         if (blink) {
-            this.ctx.fillText('Press ENTER to Try Again', this.width / 2, 480);
+            this.ctx.fillText('Press ENTER to Try Again', this.width / 2, 460);
         }
+
+        // Navigation hint
+        this.ctx.fillStyle = '#666';
+        this.ctx.font = '14px monospace';
+        this.ctx.fillText('[L] View Leaderboard', this.width / 2, 500);
     }
 
     // Draw CRT scanline effect
@@ -991,7 +996,7 @@ export class RenderSystem {
         this.ctx.textAlign = 'center';
     }
 
-    // Draw leaderboard
+    // Draw leaderboard (compact version for menu)
     drawLeaderboard(entries, playerRank = null) {
         const startX = this.width / 2;
         const startY = 180;
@@ -1037,6 +1042,100 @@ export class RenderSystem {
         });
 
         this.ctx.textAlign = 'center';
+    }
+
+    // Draw full screen leaderboard (for game over state)
+    drawLeaderboardFullScreen(entries, playerRank = null) {
+        // Dark overlay
+        this.ctx.fillStyle = 'rgba(0, 0, 0, 0.85)';
+        this.ctx.fillRect(0, 0, this.width, this.height);
+
+        const startX = this.width / 2;
+        const startY = 100;
+        const lineHeight = 35;
+        const width = 500;
+
+        // Title
+        this.ctx.fillStyle = '#ffcc00';
+        this.ctx.font = 'bold 36px monospace';
+        this.ctx.textAlign = 'center';
+        this.ctx.fillText('LEADERBOARD', startX, startY);
+
+        // Subtitle with player rank
+        if (playerRank && playerRank <= 10) {
+            this.ctx.fillStyle = '#88ff88';
+            this.ctx.font = '16px monospace';
+            this.ctx.fillText(`You placed #${playerRank}!`, startX, startY + 30);
+        }
+
+        // Header row
+        const headerY = startY + 60;
+        this.ctx.fillStyle = '#888';
+        this.ctx.font = 'bold 12px monospace';
+        this.ctx.textAlign = 'left';
+        this.ctx.fillText('RANK', startX - width / 2 + 10, headerY);
+        this.ctx.fillText('NAME', startX - width / 2 + 70, headerY);
+        this.ctx.textAlign = 'right';
+        this.ctx.fillText('SCORE', startX + width / 2 - 100, headerY);
+        this.ctx.fillText('TIME', startX + width / 2 - 10, headerY);
+
+        // Divider
+        this.ctx.strokeStyle = '#444';
+        this.ctx.lineWidth = 1;
+        this.ctx.beginPath();
+        this.ctx.moveTo(startX - width / 2, headerY + 10);
+        this.ctx.lineTo(startX + width / 2, headerY + 10);
+        this.ctx.stroke();
+
+        // Entries
+        entries.forEach((entry, i) => {
+            const y = startY + 95 + i * lineHeight;
+            const rank = i + 1;
+
+            // Highlight player entry
+            if (entry.isPlayer) {
+                this.ctx.fillStyle = 'rgba(100, 150, 255, 0.2)';
+                this.ctx.fillRect(startX - width / 2, y - 22, width, lineHeight - 2);
+            }
+
+            // Medal for top 3
+            this.ctx.font = '18px serif';
+            this.ctx.textAlign = 'center';
+            if (rank === 1) {
+                this.ctx.fillText('🥇', startX - width / 2 + 30, y);
+            } else if (rank === 2) {
+                this.ctx.fillText('🥈', startX - width / 2 + 30, y);
+            } else if (rank === 3) {
+                this.ctx.fillText('🥉', startX - width / 2 + 30, y);
+            } else {
+                this.ctx.fillStyle = '#666';
+                this.ctx.font = 'bold 16px monospace';
+                this.ctx.fillText(`${rank}`, startX - width / 2 + 30, y);
+            }
+
+            // Name
+            this.ctx.fillStyle = entry.isPlayer ? '#88ccff' : '#fff';
+            this.ctx.font = entry.isPlayer ? 'bold 16px monospace' : '16px monospace';
+            this.ctx.textAlign = 'left';
+            this.ctx.fillText(entry.name, startX - width / 2 + 70, y);
+
+            // Score
+            this.ctx.fillStyle = entry.isPlayer ? '#88ccff' : '#aaa';
+            this.ctx.textAlign = 'right';
+            this.ctx.fillText(formatScore(entry.score), startX + width / 2 - 100, y);
+
+            // Time (format as MM:SS)
+            this.ctx.fillStyle = '#666';
+            const mins = Math.floor(entry.time / 60);
+            const secs = Math.floor(entry.time % 60);
+            this.ctx.fillText(`${mins}:${secs.toString().padStart(2, '0')}`, startX + width / 2 - 10, y);
+        });
+
+        // Navigation hint
+        this.ctx.fillStyle = '#666';
+        this.ctx.font = '14px monospace';
+        this.ctx.textAlign = 'center';
+        this.ctx.fillText('[L] Toggle View  |  [ENTER] Return to Menu', startX, this.height - 40);
     }
 
     // Draw achievements gallery
@@ -1138,5 +1237,57 @@ export class RenderSystem {
         this.ctx.font = '12px monospace';
         this.ctx.textAlign = 'right';
         this.ctx.fillText(phaseName, this.width - 20, this.height - 35);
+    }
+
+    // Draw name entry screen
+    drawNameEntry(currentName, cursorVisible, playerScore, isNewHighScore) {
+        // Darken background
+        this.ctx.fillStyle = 'rgba(0, 0, 0, 0.85)';
+        this.ctx.fillRect(0, 0, this.width, this.height);
+
+        // Title
+        this.ctx.fillStyle = isNewHighScore ? '#ffcc00' : '#fff';
+        this.ctx.font = 'bold 32px monospace';
+        this.ctx.textAlign = 'center';
+        this.ctx.fillText(isNewHighScore ? 'NEW HIGH SCORE!' : 'ENTER YOUR NAME', this.width / 2, 150);
+
+        // Score display
+        this.ctx.fillStyle = '#aaa';
+        this.ctx.font = '20px monospace';
+        this.ctx.fillText(`Score: ${formatScore(playerScore)}`, this.width / 2, 190);
+
+        // Name entry box
+        const boxWidth = 280;
+        const boxHeight = 50;
+        const boxX = (this.width - boxWidth) / 2;
+        const boxY = 230;
+
+        // Box background
+        this.ctx.fillStyle = '#222';
+        this.ctx.fillRect(boxX, boxY, boxWidth, boxHeight);
+
+        // Box border
+        this.ctx.strokeStyle = '#888';
+        this.ctx.lineWidth = 2;
+        this.ctx.strokeRect(boxX, boxY, boxWidth, boxHeight);
+
+        // Name text
+        this.ctx.fillStyle = '#fff';
+        this.ctx.font = 'bold 28px monospace';
+        this.ctx.textAlign = 'center';
+
+        const displayName = currentName + (cursorVisible ? '_' : '');
+        this.ctx.fillText(displayName, this.width / 2, boxY + 35);
+
+        // Instructions
+        this.ctx.fillStyle = '#888';
+        this.ctx.font = '14px monospace';
+        this.ctx.fillText('Type your name (max 12 characters)', this.width / 2, boxY + 80);
+        this.ctx.fillText('Press ENTER to confirm  |  BACKSPACE to delete', this.width / 2, boxY + 105);
+
+        // Preview hint
+        this.ctx.fillStyle = '#666';
+        this.ctx.font = '12px monospace';
+        this.ctx.fillText('Your name will appear on the leaderboard', this.width / 2, boxY + 140);
     }
 }

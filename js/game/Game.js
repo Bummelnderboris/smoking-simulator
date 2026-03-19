@@ -48,6 +48,10 @@ export class Game {
         this.showLeaderboard = false;
         this.showAchievements = false;
 
+        // Name entry state
+        this.enteredName = '';
+        this.nameCursorBlink = 0;
+
         // Bind methods
         this.gameLoop = this.gameLoop.bind(this);
     }
@@ -113,6 +117,9 @@ export class Game {
             case GAME_STATES.GAME_OVER:
                 this.updateGameOver();
                 break;
+            case GAME_STATES.NAME_ENTRY:
+                this.updateNameEntry(deltaTime);
+                break;
         }
     }
 
@@ -129,8 +136,16 @@ export class Game {
         this.dayNight = new DayNightSystem();
         this.state = GAME_STATES.PLAYING;
         this.deathCause = '';
+
+        // Reset all UI state flags
         this.showLeaderboard = false;
         this.showAchievements = false;
+        this.isNewHighScore = false;
+        this.playerRank = null;
+        this.enteredName = '';
+
+        // Reset drunk effect tracking
+        this.lastInversionCheck = 0;
 
         await this.audio.resume();
         this.audio.startMusic();
@@ -162,8 +177,11 @@ export class Game {
         }
 
         // Drunk effect: Random control inversion at 80%+
+        // Only trigger if not already inverted to prevent stacking
         const now = performance.now();
-        if (this.player.drunkenness >= 80 && now - this.lastInversionCheck > this.inversionCooldown) {
+        if (this.player.drunkenness >= 80 &&
+            now - this.lastInversionCheck > this.inversionCooldown &&
+            !this.renderer.isControlsInverted()) {
             this.lastInversionCheck = now;
             if (Math.random() < 0.3) { // 30% chance
                 this.renderer.triggerControlInversion(2000);
@@ -307,7 +325,6 @@ export class Game {
     }
 
     gameOver(cause) {
-        this.state = GAME_STATES.GAME_OVER;
         this.deathCause = DEATH_CAUSES[cause] || 'You died somehow.';
         this.audio.stopMusic();
         this.audio.playGameOverSound();
@@ -315,13 +332,6 @@ export class Game {
 
         // Process achievements
         this.achievements.onGameOver(this.player);
-
-        // Submit to leaderboard
-        this.playerRank = this.leaderboard.submitScore(
-            this.player.score,
-            this.player.timeAlive,
-            this.player.totalCigarettesSmoked
-        );
 
         // Check for new high score
         if (this.player.score > this.highScore) {
@@ -331,13 +341,64 @@ export class Game {
             this.isNewHighScore = false;
         }
 
-        // Show leaderboard on game over
-        this.showLeaderboard = true;
+        // Check if score qualifies for leaderboard
+        if (this.leaderboard.isOnLeaderboard(this.player.score)) {
+            // Go to name entry first
+            this.state = GAME_STATES.NAME_ENTRY;
+            this.enteredName = this.leaderboard.getPlayerName();
+            this.nameCursorBlink = 0;
+        } else {
+            // Go directly to game over
+            this.state = GAME_STATES.GAME_OVER;
+            this.playerRank = null;
+            this.showLeaderboard = false;
+        }
+    }
+
+    updateNameEntry(deltaTime) {
+        // Cursor blink
+        this.nameCursorBlink += deltaTime;
+
+        // Handle typed characters
+        const typedChar = this.input.getTypedCharacter();
+        if (typedChar && this.enteredName.length < 12) {
+            // Only allow alphanumeric characters
+            if (/^[a-zA-Z0-9]$/.test(typedChar)) {
+                this.enteredName += typedChar.toUpperCase();
+            }
+        }
+
+        // Handle backspace
+        if (this.input.isJustPressed('backspace') && this.enteredName.length > 0) {
+            this.enteredName = this.enteredName.slice(0, -1);
+        }
+
+        // Handle enter to confirm
+        if (this.input.isJustPressed('enter') || this.input.isJustPressed(KEYS.START)) {
+            if (this.enteredName.length > 0) {
+                // Save name and submit score
+                this.leaderboard.setPlayerName(this.enteredName);
+                this.playerRank = this.leaderboard.submitScore(
+                    this.player.score,
+                    this.player.timeAlive,
+                    this.player.totalCigarettesSmoked
+                );
+                this.state = GAME_STATES.GAME_OVER;
+                this.showLeaderboard = true;
+            }
+        }
     }
 
     updateGameOver() {
+        // Toggle leaderboard with L
+        if (this.input.isJustPressed('l')) {
+            this.showLeaderboard = !this.showLeaderboard;
+        }
+
         if (this.input.isJustPressed(KEYS.START) || this.input.isJustPressed('enter')) {
             this.state = GAME_STATES.MENU;
+            this.showLeaderboard = false;
+            this.showAchievements = false;
         }
     }
 
@@ -375,12 +436,27 @@ export class Game {
                 }
                 break;
 
+            case GAME_STATES.NAME_ENTRY:
+                this.renderGame();
+                const cursorVisible = Math.floor(this.nameCursorBlink / 400) % 2 === 0;
+                this.renderer.drawNameEntry(
+                    this.enteredName,
+                    cursorVisible,
+                    this.player.score,
+                    this.isNewHighScore
+                );
+                break;
+
             case GAME_STATES.GAME_OVER:
                 this.renderGame();
-                this.renderer.drawGameOver(this.player, this.deathCause, this.highScore, this.isNewHighScore);
-                // Show leaderboard on game over
                 if (this.showLeaderboard) {
-                    this.renderer.drawLeaderboard(this.leaderboard.getTopEntries(), this.playerRank);
+                    // Draw leaderboard as full screen overlay (not on top of game over)
+                    this.renderer.drawLeaderboardFullScreen(
+                        this.leaderboard.getTopEntries(),
+                        this.playerRank
+                    );
+                } else {
+                    this.renderer.drawGameOver(this.player, this.deathCause, this.highScore, this.isNewHighScore);
                 }
                 break;
         }

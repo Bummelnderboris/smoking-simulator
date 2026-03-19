@@ -6,6 +6,7 @@ export class InputHandler {
         this.justPressed = new Map();
         this.pendingInputs = [];
         this.drunkLevel = 0;
+        this.typedCharacter = null;
 
         this.setupListeners();
     }
@@ -23,6 +24,11 @@ export class InputHandler {
                 this.justPressed.set(key, true);
             }
             this.keys.set(key, true);
+
+            // Track typed characters for name entry (single printable characters)
+            if (e.key.length === 1 && /^[a-zA-Z0-9]$/.test(e.key)) {
+                this.typedCharacter = e.key;
+            }
         });
 
         window.addEventListener('keyup', (e) => {
@@ -34,6 +40,7 @@ export class InputHandler {
         window.addEventListener('blur', () => {
             this.keys.clear();
             this.justPressed.clear();
+            this.typedCharacter = null;
         });
     }
 
@@ -50,6 +57,12 @@ export class InputHandler {
     // Clear just pressed state (call at end of frame)
     clearJustPressed() {
         this.justPressed.clear();
+        this.typedCharacter = null;
+    }
+
+    // Get a typed character (for text entry)
+    getTypedCharacter() {
+        return this.typedCharacter;
     }
 
     // Set drunk level for input effects
