@@ -67,7 +67,12 @@ export const GAME_CONFIG = {
         METER_WARNING: '#ffaa00',
         METER_OK: '#44ff44',
         TEXT: '#ffffff',
-        TEXT_SHADOW: '#000000'
+        TEXT_SHADOW: '#000000',
+        // Room colors for ego perspective
+        WALLPAPER_1: '#5a4a3a',
+        WALLPAPER_2: '#4a3a2a',
+        SKIN_TONE: '#e8beac',
+        TSHIRT: '#4a4a4a'
     }
 };
 

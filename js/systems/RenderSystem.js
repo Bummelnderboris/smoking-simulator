@@ -2,6 +2,33 @@ import { GAME_CONFIG } from '../utils/constants.js';
 import { getWobbleOffset, formatTime, formatScore, drunkifyText, clamp } from '../utils/helpers.js';
 import { TIME_COLORS } from './DayNightSystem.js';
 
+// Screen zones for ego perspective layout (Y coordinates)
+const ZONES = {
+    WALL: { y: 0, height: 200 },
+    TABLE: { y: 200, height: 250 },
+    BELLY: { y: 450, height: 90 },
+    HUD: { y: 540, height: 60 }
+};
+
+// Room colors
+const ROOM_COLORS = {
+    WALLPAPER_STRIPE_1: '#5a4a3a',
+    WALLPAPER_STRIPE_2: '#4a3a2a',
+    WALLPAPER_ACCENT: '#6a5a4a',
+    RADIATOR: '#c0c0c0',
+    RADIATOR_DARK: '#808080',
+    TV_CABINET: '#3a2a1a',
+    TV_SCREEN_OFF: '#1a1a1a',
+    SHELF: '#5a4030',
+    BOTTLE_GREEN: '#2a5a2a',
+    BOTTLE_BROWN: '#5a3a1a',
+    SKIN_TONE: '#e8beac',
+    SKIN_TONE_DARK: '#d4a090',
+    TSHIRT_GRAY: '#4a4a4a',
+    TSHIRT_STAIN: '#3a3a3a',
+    BELLY_HAIR: '#6a5a4a'
+};
+
 export class RenderSystem {
     constructor(canvas) {
         this.canvas = canvas;
@@ -35,6 +62,15 @@ export class RenderSystem {
         // Gaming mode effects
         this.levelUpFlashTimer = 0;
         this.speedLineOffset = 0;
+
+        // TV static animation
+        this.tvStaticFrame = 0;
+
+        // Beer belly breathing animation
+        this.bellyBreathPhase = 0;
+
+        // Current drunk level for belly size
+        this.currentDrunkLevel = 0;
     }
 
     clear() {
@@ -84,6 +120,12 @@ export class RenderSystem {
 
         // Update speed line animation
         this.speedLineOffset += deltaTime * 0.5;
+
+        // Update TV static
+        this.tvStaticFrame += deltaTime * 0.03;
+
+        // Update belly breathing (slow, relaxed breathing)
+        this.bellyBreathPhase += deltaTime * 0.002;
     }
 
     // Set day/night colors
@@ -153,84 +195,562 @@ export class RenderSystem {
         this.ctx.restore();
     }
 
-    // Draw the tile table background
+    // Store drunk level for belly rendering
+    setDrunkLevel(level) {
+        this.currentDrunkLevel = level;
+    }
+
+    // Draw the complete room scene (ego perspective)
     drawTable(dayNight = null, stars = []) {
-        const tileSize = 40;
-        const groutWidth = 3;
-        const tableTop = this.height * 0.4;
         const colors = dayNight || this.dayNightColors;
 
-        // Wall background (above table) - uses day/night colors
-        const wallGradient = this.ctx.createLinearGradient(0, 0, 0, tableTop);
-        wallGradient.addColorStop(0, colors.wall || '#4a3728');
-        wallGradient.addColorStop(1, colors.wallAccent || '#3d2d1f');
-        this.ctx.fillStyle = wallGradient;
-        this.ctx.fillRect(0, 0, this.width, tableTop);
+        // Draw room background (wall zone)
+        this.drawRoom(colors, stars);
 
-        // Wood paneling lines
-        this.ctx.strokeStyle = this.adjustBrightness(colors.wallAccent || '#2a1a10', 0.7);
-        this.ctx.lineWidth = 1;
-        for (let y = 20; y < tableTop; y += 60) {
-            this.ctx.beginPath();
-            this.ctx.moveTo(0, y);
-            this.ctx.lineTo(this.width, y);
-            this.ctx.stroke();
-        }
+        // Draw TV on the left
+        this.drawTV(60, 50, colors);
 
-        // Window (shows sky/time of day)
-        this.drawWindow(400, 80, colors, stars);
+        // Draw perspective table in the middle zone
+        this.drawTablePerspective(colors);
 
-        // Lamp (only visible at night)
-        if (colors.lampOn) {
-            this.drawLamp(580, 60);
-        }
-
-        // Clock on wall (80s style)
-        this.drawWallClock(700, 100);
-
-        // Neon sign / poster
-        this.drawNeonSign(100, 120);
-
-        // Table surface
-        this.ctx.fillStyle = GAME_CONFIG.COLORS.TABLE_GROUT;
-        this.ctx.fillRect(0, tableTop, this.width, this.height - tableTop);
-
-        // Draw tiles - use seeded random for stable pattern
-        for (let x = 0; x < this.width; x += tileSize + groutWidth) {
-            for (let y = tableTop; y < this.height; y += tileSize + groutWidth) {
-                // Pseudo-random based on position for stable rendering
-                const seed = (x * 7 + y * 13) % 100;
-                const brightness = 0.9 + (seed / 500);
-                this.ctx.fillStyle = this.adjustBrightness(GAME_CONFIG.COLORS.TABLE_TILE, brightness);
-                this.ctx.fillRect(x, y, tileSize, tileSize);
-            }
-        }
-
-        // Table edge shadow
-        const gradient = this.ctx.createLinearGradient(0, tableTop, 0, tableTop + 20);
-        gradient.addColorStop(0, 'rgba(0,0,0,0.4)');
-        gradient.addColorStop(1, 'rgba(0,0,0,0)');
-        this.ctx.fillStyle = gradient;
-        this.ctx.fillRect(0, tableTop, this.width, 20);
+        // Draw beer belly at the bottom (foreground)
+        this.drawBeerBelly(this.currentDrunkLevel);
 
         // Ambient lighting overlay
         if (colors.ambient) {
             this.ctx.fillStyle = colors.ambient;
-            this.ctx.fillRect(0, 0, this.width, this.height);
+            this.ctx.fillRect(0, 0, this.width, ZONES.BELLY.y);
         }
 
-        // Matches box on table
-        this.drawMatchBox(650, 420);
+        // Room haze from smoke (subtle overlay)
+        const smokeHaze = Math.min(this.smokeParticles.length / 50, 0.15);
+        if (smokeHaze > 0) {
+            this.ctx.fillStyle = `rgba(180, 180, 180, ${smokeHaze})`;
+            this.ctx.fillRect(0, 0, this.width, ZONES.BELLY.y);
+        }
     }
 
-    // Draw window showing sky
-    drawWindow(x, y, colors, stars = []) {
-        const width = 120;
-        const height = 100;
+    // Draw room background with wallpaper, decorations
+    drawRoom(colors, stars = []) {
+        const wallHeight = ZONES.WALL.height;
 
-        // Window frame
+        // Wallpaper - striped pattern
+        const stripeWidth = 30;
+        for (let x = 0; x < this.width; x += stripeWidth) {
+            const stripeIndex = Math.floor(x / stripeWidth);
+            const baseColor = stripeIndex % 2 === 0 ? ROOM_COLORS.WALLPAPER_STRIPE_1 : ROOM_COLORS.WALLPAPER_STRIPE_2;
+            // Adjust for day/night
+            this.ctx.fillStyle = this.blendColors(baseColor, colors.wall || baseColor, 0.5);
+            this.ctx.fillRect(x, 0, stripeWidth, wallHeight);
+        }
+
+        // Wallpaper trim at bottom of wall
+        this.ctx.fillStyle = ROOM_COLORS.WALLPAPER_ACCENT;
+        this.ctx.fillRect(0, wallHeight - 15, this.width, 15);
+
+        // Window with blinds (right side)
+        this.drawWindow(580, 30, colors, stars);
+
+        // Radiator under window
+        this.drawRadiator(560, 160);
+
+        // Beer bottles on shelf (right side)
+        this.drawShelfWithBottles(680, 100);
+
+        // Poster/calendar on wall (left-center)
+        this.drawPoster(250, 40);
+
+        // Clock on wall (repositioned)
+        this.drawWallClock(420, 60);
+
+        // Lamp glow (only at night)
+        if (colors.lampOn) {
+            this.drawLampGlow(colors);
+        }
+    }
+
+    // Draw CRT TV with static/animated content
+    drawTV(x, y, colors) {
+        const tvWidth = 140;
+        const tvHeight = 110;
+        const screenWidth = 100;
+        const screenHeight = 75;
+        const screenX = x + (tvWidth - screenWidth) / 2;
+        const screenY = y + 20;
+
+        // TV stand/shelf
+        this.ctx.fillStyle = '#2a1a0a';
+        this.ctx.fillRect(x - 10, y + tvHeight - 5, tvWidth + 20, 15);
+
+        // TV cabinet (wood grain)
+        const cabinetGrad = this.ctx.createLinearGradient(x, y, x + tvWidth, y);
+        cabinetGrad.addColorStop(0, '#4a3020');
+        cabinetGrad.addColorStop(0.5, '#5a4030');
+        cabinetGrad.addColorStop(1, '#4a3020');
+        this.ctx.fillStyle = cabinetGrad;
+        this.ctx.fillRect(x, y, tvWidth, tvHeight);
+
+        // TV screen bezel
+        this.ctx.fillStyle = '#1a1a1a';
+        this.ctx.fillRect(screenX - 5, screenY - 5, screenWidth + 10, screenHeight + 10);
+
+        // TV screen with static
+        this.drawTVScreen(screenX, screenY, screenWidth, screenHeight, colors);
+
+        // TV antenna
+        this.ctx.strokeStyle = '#555';
+        this.ctx.lineWidth = 3;
+        this.ctx.beginPath();
+        this.ctx.moveTo(x + tvWidth / 2, y);
+        this.ctx.lineTo(x + tvWidth / 2 - 25, y - 35);
+        this.ctx.moveTo(x + tvWidth / 2, y);
+        this.ctx.lineTo(x + tvWidth / 2 + 25, y - 35);
+        this.ctx.stroke();
+
+        // Antenna tips
+        this.ctx.fillStyle = '#666';
+        this.ctx.beginPath();
+        this.ctx.arc(x + tvWidth / 2 - 25, y - 35, 4, 0, Math.PI * 2);
+        this.ctx.arc(x + tvWidth / 2 + 25, y - 35, 4, 0, Math.PI * 2);
+        this.ctx.fill();
+
+        // TV control knobs
+        this.ctx.fillStyle = '#333';
+        this.ctx.beginPath();
+        this.ctx.arc(x + tvWidth - 20, y + tvHeight - 25, 6, 0, Math.PI * 2);
+        this.ctx.arc(x + tvWidth - 20, y + tvHeight - 45, 6, 0, Math.PI * 2);
+        this.ctx.fill();
+
+        // TV glow effect on surrounding area
+        const glowIntensity = colors.lampOn ? 0.15 : 0.25;
+        const glowGrad = this.ctx.createRadialGradient(
+            screenX + screenWidth / 2, screenY + screenHeight / 2, 0,
+            screenX + screenWidth / 2, screenY + screenHeight / 2, 150
+        );
+        glowGrad.addColorStop(0, `rgba(100, 150, 200, ${glowIntensity})`);
+        glowGrad.addColorStop(1, 'rgba(100, 150, 200, 0)');
+        this.ctx.fillStyle = glowGrad;
+        this.ctx.fillRect(0, 0, 300, 200);
+    }
+
+    // Draw TV screen content with static
+    drawTVScreen(x, y, width, height, colors) {
+        // Base screen color
+        this.ctx.fillStyle = '#0a0a15';
+        this.ctx.fillRect(x, y, width, height);
+
+        // Static noise pattern
+        const staticIntensity = 0.3 + Math.sin(this.tvStaticFrame) * 0.1;
+        const drunkDistort = this.currentDrunkLevel / 100 * 0.3;
+
+        // Draw static lines
+        for (let sy = 0; sy < height; sy += 3) {
+            const lineAlpha = (Math.sin(sy * 0.5 + this.tvStaticFrame * 2) + 1) * 0.15 + staticIntensity * 0.1;
+            this.ctx.fillStyle = `rgba(200, 200, 220, ${lineAlpha + drunkDistort * 0.2})`;
+            this.ctx.fillRect(x, y + sy, width, 1);
+        }
+
+        // Random noise pixels
+        const noiseCount = 100 + this.currentDrunkLevel;
+        for (let i = 0; i < noiseCount; i++) {
+            const seed = (i * 17 + Math.floor(this.tvStaticFrame * 3)) % 1000;
+            const nx = x + (seed % width);
+            const ny = y + (Math.floor(seed / width) % height);
+            const brightness = 100 + ((seed * 7) % 155);
+            this.ctx.fillStyle = `rgb(${brightness}, ${brightness}, ${brightness + 20})`;
+            this.ctx.fillRect(nx, ny, 2, 2);
+        }
+
+        // Occasional "show" content - simple test card pattern
+        if (Math.sin(this.time / 5000) > 0.3) {
+            // Color bars (German TV test card style)
+            const barWidth = width / 7;
+            const barColors = ['#fff', '#ff0', '#0ff', '#0f0', '#f0f', '#f00', '#00f'];
+            barColors.forEach((color, i) => {
+                this.ctx.fillStyle = color;
+                this.ctx.globalAlpha = 0.4;
+                this.ctx.fillRect(x + i * barWidth, y + height * 0.3, barWidth, height * 0.4);
+            });
+            this.ctx.globalAlpha = 1;
+        }
+
+        // Scanline flicker
+        if (Math.random() < 0.05 + drunkDistort * 0.1) {
+            const flickerY = y + Math.random() * height;
+            this.ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
+            this.ctx.fillRect(x, flickerY, width, 2);
+        }
+
+        // Screen reflection
+        const reflectGrad = this.ctx.createLinearGradient(x, y, x + width, y + height);
+        reflectGrad.addColorStop(0, 'rgba(255, 255, 255, 0.05)');
+        reflectGrad.addColorStop(0.3, 'rgba(255, 255, 255, 0)');
+        this.ctx.fillStyle = reflectGrad;
+        this.ctx.fillRect(x, y, width, height);
+    }
+
+    // Draw radiator under window
+    drawRadiator(x, y) {
+        const width = 100;
+        const height = 35;
+        const ribCount = 8;
+        const ribWidth = width / ribCount;
+
+        // Radiator body
+        this.ctx.fillStyle = ROOM_COLORS.RADIATOR;
+        this.ctx.fillRect(x, y, width, height);
+
+        // Ribs
+        for (let i = 0; i < ribCount; i++) {
+            this.ctx.fillStyle = i % 2 === 0 ? ROOM_COLORS.RADIATOR_DARK : ROOM_COLORS.RADIATOR;
+            this.ctx.fillRect(x + i * ribWidth, y, ribWidth - 1, height);
+
+            // Vertical lines for depth
+            this.ctx.strokeStyle = '#606060';
+            this.ctx.lineWidth = 1;
+            this.ctx.beginPath();
+            this.ctx.moveTo(x + i * ribWidth + ribWidth / 2, y + 3);
+            this.ctx.lineTo(x + i * ribWidth + ribWidth / 2, y + height - 3);
+            this.ctx.stroke();
+        }
+
+        // Top and bottom rails
+        this.ctx.fillStyle = '#909090';
+        this.ctx.fillRect(x - 5, y - 3, width + 10, 5);
+        this.ctx.fillRect(x - 5, y + height - 2, width + 10, 5);
+    }
+
+    // Draw shelf with beer bottles
+    drawShelfWithBottles(x, y) {
+        const shelfWidth = 100;
+        const shelfHeight = 10;
+
+        // Shelf
+        this.ctx.fillStyle = ROOM_COLORS.SHELF;
+        this.ctx.fillRect(x, y, shelfWidth, shelfHeight);
+
+        // Shelf edge
+        this.ctx.fillStyle = this.adjustBrightness(ROOM_COLORS.SHELF, 0.7);
+        this.ctx.fillRect(x, y + shelfHeight - 3, shelfWidth, 3);
+
+        // Beer bottles on shelf
+        const bottlePositions = [15, 35, 55, 75];
+        bottlePositions.forEach((bx, i) => {
+            const bottleColor = i % 2 === 0 ? ROOM_COLORS.BOTTLE_GREEN : ROOM_COLORS.BOTTLE_BROWN;
+            const bottleHeight = 25 + (i % 3) * 5;
+
+            // Bottle body
+            this.ctx.fillStyle = bottleColor;
+            this.ctx.fillRect(x + bx - 4, y - bottleHeight, 8, bottleHeight);
+
+            // Bottle neck
+            this.ctx.fillRect(x + bx - 2, y - bottleHeight - 8, 4, 10);
+
+            // Bottle cap
+            this.ctx.fillStyle = '#c0a030';
+            this.ctx.fillRect(x + bx - 3, y - bottleHeight - 10, 6, 3);
+
+            // Label
+            this.ctx.fillStyle = '#f0e0c0';
+            this.ctx.fillRect(x + bx - 3, y - bottleHeight + 8, 6, 8);
+        });
+    }
+
+    // Draw poster/calendar on wall
+    drawPoster(x, y) {
+        const width = 70;
+        const height = 90;
+
+        // Poster background
+        this.ctx.fillStyle = '#d0c0a0';
+        this.ctx.fillRect(x, y, width, height);
+
+        // Poster border
+        this.ctx.strokeStyle = '#8a7a5a';
+        this.ctx.lineWidth = 2;
+        this.ctx.strokeRect(x, y, width, height);
+
+        // Simple "pin-up" or beer ad graphic (abstract)
+        const glow = Math.sin(this.time / 600) * 0.2 + 0.8;
+
+        // Beer mug shape
+        this.ctx.fillStyle = `rgba(218, 165, 32, ${glow})`;
+        this.ctx.fillRect(x + 20, y + 25, 30, 40);
+
+        // Foam
+        this.ctx.fillStyle = '#fff8dc';
+        this.ctx.fillRect(x + 18, y + 20, 34, 10);
+
+        // Handle
+        this.ctx.strokeStyle = `rgba(218, 165, 32, ${glow})`;
+        this.ctx.lineWidth = 4;
+        this.ctx.beginPath();
+        this.ctx.arc(x + 50, y + 45, 10, -Math.PI / 2, Math.PI / 2);
+        this.ctx.stroke();
+
+        // Text "BIER"
+        this.ctx.fillStyle = '#4a2a0a';
+        this.ctx.font = 'bold 12px serif';
+        this.ctx.textAlign = 'center';
+        this.ctx.fillText('BIER', x + width / 2, y + 80);
+
+        // Pin at top
+        this.ctx.fillStyle = '#cc0000';
+        this.ctx.beginPath();
+        this.ctx.arc(x + width / 2, y + 5, 4, 0, Math.PI * 2);
+        this.ctx.fill();
+    }
+
+    // Draw lamp glow effect for night time
+    drawLampGlow(colors) {
+        // Warm glow from an unseen lamp
+        const glowGrad = this.ctx.createRadialGradient(
+            700, 150, 0,
+            700, 150, 200
+        );
+        glowGrad.addColorStop(0, 'rgba(255, 200, 100, 0.2)');
+        glowGrad.addColorStop(0.5, 'rgba(255, 180, 80, 0.1)');
+        glowGrad.addColorStop(1, 'rgba(255, 150, 50, 0)');
+        this.ctx.fillStyle = glowGrad;
+        this.ctx.fillRect(500, 0, 300, 300);
+    }
+
+    // Draw perspective tile table (Fliesentisch)
+    drawTablePerspective(colors) {
+        const tableTop = ZONES.TABLE.y;
+        const tableBottom = ZONES.TABLE.y + ZONES.TABLE.height;
+        const tableHeight = ZONES.TABLE.height;
+
+        // Table surface with perspective (trapezoid)
+        // Top edge is narrower and further away
+        const topLeft = 100;
+        const topRight = this.width - 100;
+        const bottomLeft = 20;
+        const bottomRight = this.width - 20;
+
+        // Draw table grout background first
+        this.ctx.fillStyle = GAME_CONFIG.COLORS.TABLE_GROUT;
+        this.ctx.beginPath();
+        this.ctx.moveTo(topLeft, tableTop);
+        this.ctx.lineTo(topRight, tableTop);
+        this.ctx.lineTo(bottomRight, tableBottom);
+        this.ctx.lineTo(bottomLeft, tableBottom);
+        this.ctx.closePath();
+        this.ctx.fill();
+
+        // Draw tiles with perspective
+        const tilesX = 12;
+        const tilesY = 6;
+
+        for (let ty = 0; ty < tilesY; ty++) {
+            for (let tx = 0; tx < tilesX; tx++) {
+                // Calculate perspective-adjusted tile corners
+                const t1 = ty / tilesY;
+                const t2 = (ty + 1) / tilesY;
+
+                const leftEdge1 = topLeft + (bottomLeft - topLeft) * t1;
+                const rightEdge1 = topRight + (bottomRight - topRight) * t1;
+                const leftEdge2 = topLeft + (bottomLeft - topLeft) * t2;
+                const rightEdge2 = topRight + (bottomRight - topRight) * t2;
+
+                const y1 = tableTop + tableHeight * t1;
+                const y2 = tableTop + tableHeight * t2;
+
+                const width1 = rightEdge1 - leftEdge1;
+                const width2 = rightEdge2 - leftEdge2;
+
+                const x1 = leftEdge1 + (width1 / tilesX) * tx;
+                const x2 = leftEdge1 + (width1 / tilesX) * (tx + 1);
+                const x3 = leftEdge2 + (width2 / tilesX) * (tx + 1);
+                const x4 = leftEdge2 + (width2 / tilesX) * tx;
+
+                // Tile color with variation
+                const seed = (tx * 7 + ty * 13) % 100;
+                const brightness = 0.9 + (seed / 500);
+                this.ctx.fillStyle = this.adjustBrightness(GAME_CONFIG.COLORS.TABLE_TILE, brightness);
+
+                // Draw tile as quadrilateral
+                this.ctx.beginPath();
+                this.ctx.moveTo(x1 + 1, y1 + 1);
+                this.ctx.lineTo(x2 - 1, y1 + 1);
+                this.ctx.lineTo(x3 - 1, y2 - 1);
+                this.ctx.lineTo(x4 + 1, y2 - 1);
+                this.ctx.closePath();
+                this.ctx.fill();
+            }
+        }
+
+        // Chrome table edge/trim (left and right sides)
+        this.ctx.fillStyle = '#c0c0c0';
+        this.ctx.beginPath();
+        this.ctx.moveTo(topLeft - 5, tableTop);
+        this.ctx.lineTo(topLeft, tableTop);
+        this.ctx.lineTo(bottomLeft, tableBottom);
+        this.ctx.lineTo(bottomLeft - 8, tableBottom);
+        this.ctx.closePath();
+        this.ctx.fill();
+
+        this.ctx.beginPath();
+        this.ctx.moveTo(topRight + 5, tableTop);
+        this.ctx.lineTo(topRight, tableTop);
+        this.ctx.lineTo(bottomRight, tableBottom);
+        this.ctx.lineTo(bottomRight + 8, tableBottom);
+        this.ctx.closePath();
+        this.ctx.fill();
+
+        // Chrome highlight
+        this.ctx.fillStyle = '#e0e0e0';
+        this.ctx.beginPath();
+        this.ctx.moveTo(topLeft - 3, tableTop);
+        this.ctx.lineTo(topLeft - 1, tableTop);
+        this.ctx.lineTo(bottomLeft - 1, tableBottom);
+        this.ctx.lineTo(bottomLeft - 4, tableBottom);
+        this.ctx.closePath();
+        this.ctx.fill();
+
+        // Table edge shadow at top
+        const shadowGrad = this.ctx.createLinearGradient(0, tableTop, 0, tableTop + 25);
+        shadowGrad.addColorStop(0, 'rgba(0,0,0,0.4)');
+        shadowGrad.addColorStop(1, 'rgba(0,0,0,0)');
+        this.ctx.fillStyle = shadowGrad;
+        this.ctx.beginPath();
+        this.ctx.moveTo(topLeft, tableTop);
+        this.ctx.lineTo(topRight, tableTop);
+        this.ctx.lineTo(topRight - 20, tableTop + 25);
+        this.ctx.lineTo(topLeft + 20, tableTop + 25);
+        this.ctx.closePath();
+        this.ctx.fill();
+
+        // Matches box on table (repositioned)
+        this.drawMatchBox(620, 340);
+    }
+
+    // Draw beer belly (player's body, foreground)
+    drawBeerBelly(drunkLevel) {
+        const bellyY = ZONES.BELLY.y;
+        const bellyHeight = ZONES.BELLY.height;
+
+        // Breathing animation
+        const breathAmount = Math.sin(this.bellyBreathPhase) * 3;
+
+        // Belly gets slightly bigger when drunk
+        const drunkBulge = drunkLevel / 100 * 8;
+
+        // T-shirt (upper portion)
+        const shirtY = bellyY - 15;
+        const shirtHeight = 50;
+
+        // T-shirt gradient (gray, stained)
+        const shirtGrad = this.ctx.createLinearGradient(0, shirtY, 0, shirtY + shirtHeight);
+        shirtGrad.addColorStop(0, ROOM_COLORS.TSHIRT_GRAY);
+        shirtGrad.addColorStop(0.3, ROOM_COLORS.TSHIRT_STAIN);
+        shirtGrad.addColorStop(0.7, ROOM_COLORS.TSHIRT_GRAY);
+        shirtGrad.addColorStop(1, ROOM_COLORS.TSHIRT_STAIN);
+        this.ctx.fillStyle = shirtGrad;
+        this.ctx.fillRect(0, shirtY, this.width, shirtHeight + breathAmount);
+
+        // Shirt wrinkles/folds
+        this.ctx.strokeStyle = 'rgba(0, 0, 0, 0.15)';
+        this.ctx.lineWidth = 1;
+        for (let i = 0; i < 5; i++) {
+            const wx = 150 + i * 120;
+            this.ctx.beginPath();
+            this.ctx.moveTo(wx, shirtY + 10);
+            this.ctx.quadraticCurveTo(wx + 15, shirtY + 25 + breathAmount, wx - 10, shirtY + shirtHeight);
+            this.ctx.stroke();
+        }
+
+        // Stain spots on shirt
+        this.ctx.fillStyle = 'rgba(60, 50, 40, 0.3)';
+        this.ctx.beginPath();
+        this.ctx.ellipse(300, shirtY + 30, 15, 10, 0.2, 0, Math.PI * 2);
+        this.ctx.fill();
+        this.ctx.beginPath();
+        this.ctx.ellipse(520, shirtY + 25, 12, 8, -0.3, 0, Math.PI * 2);
+        this.ctx.fill();
+
+        // Exposed belly below shirt
+        const bellyExposedY = shirtY + shirtHeight - 5;
+        const bellyCurveHeight = bellyHeight - shirtHeight + 20 + drunkBulge + breathAmount;
+
+        // Belly skin
+        const skinGrad = this.ctx.createLinearGradient(0, bellyExposedY, 0, bellyExposedY + bellyCurveHeight);
+        skinGrad.addColorStop(0, ROOM_COLORS.SKIN_TONE_DARK);
+        skinGrad.addColorStop(0.5, ROOM_COLORS.SKIN_TONE);
+        skinGrad.addColorStop(1, ROOM_COLORS.SKIN_TONE_DARK);
+        this.ctx.fillStyle = skinGrad;
+
+        // Draw belly curve
+        this.ctx.beginPath();
+        this.ctx.moveTo(0, bellyExposedY);
+        // Curved belly shape
+        this.ctx.bezierCurveTo(
+            this.width * 0.25, bellyExposedY + 5,
+            this.width * 0.35, bellyExposedY + bellyCurveHeight * 0.8 + drunkBulge,
+            this.width * 0.5, bellyExposedY + bellyCurveHeight + drunkBulge
+        );
+        this.ctx.bezierCurveTo(
+            this.width * 0.65, bellyExposedY + bellyCurveHeight * 0.8 + drunkBulge,
+            this.width * 0.75, bellyExposedY + 5,
+            this.width, bellyExposedY
+        );
+        this.ctx.lineTo(this.width, this.height);
+        this.ctx.lineTo(0, this.height);
+        this.ctx.closePath();
+        this.ctx.fill();
+
+        // Belly button
+        const bellyButtonX = this.width / 2;
+        const bellyButtonY = bellyExposedY + bellyCurveHeight * 0.6 + drunkBulge / 2;
+
+        this.ctx.fillStyle = ROOM_COLORS.SKIN_TONE_DARK;
+        this.ctx.beginPath();
+        this.ctx.ellipse(bellyButtonX, bellyButtonY, 6, 10, 0, 0, Math.PI * 2);
+        this.ctx.fill();
+
+        // Belly button shadow/depth
+        this.ctx.fillStyle = 'rgba(0, 0, 0, 0.2)';
+        this.ctx.beginPath();
+        this.ctx.ellipse(bellyButtonX, bellyButtonY + 2, 4, 6, 0, 0, Math.PI * 2);
+        this.ctx.fill();
+
+        // Subtle belly hair
+        this.ctx.strokeStyle = 'rgba(100, 80, 60, 0.2)';
+        this.ctx.lineWidth = 1;
+        for (let i = 0; i < 15; i++) {
+            const hx = bellyButtonX - 40 + (i % 5) * 20 + Math.sin(i) * 10;
+            const hy = bellyButtonY - 30 + Math.floor(i / 5) * 15;
+            this.ctx.beginPath();
+            this.ctx.moveTo(hx, hy);
+            this.ctx.lineTo(hx + (Math.random() - 0.5) * 6, hy + 8);
+            this.ctx.stroke();
+        }
+
+        // Shirt hem line (where shirt meets belly)
+        this.ctx.strokeStyle = 'rgba(0, 0, 0, 0.3)';
+        this.ctx.lineWidth = 2;
+        this.ctx.beginPath();
+        this.ctx.moveTo(0, bellyExposedY - 3);
+        this.ctx.bezierCurveTo(
+            this.width * 0.3, bellyExposedY + 8 + breathAmount,
+            this.width * 0.7, bellyExposedY + 8 + breathAmount,
+            this.width, bellyExposedY - 3
+        );
+        this.ctx.stroke();
+    }
+
+    // Draw window showing sky with half-closed blinds
+    drawWindow(x, y, colors, stars = []) {
+        const width = 130;
+        const height = 120;
+
+        // Window frame (outer)
+        this.ctx.fillStyle = '#2a1a0a';
+        this.ctx.fillRect(x - 8, y - 8, width + 16, height + 16);
+
+        // Window frame (inner)
         this.ctx.fillStyle = '#3a2a1a';
-        this.ctx.fillRect(x - 5, y - 5, width + 10, height + 10);
+        this.ctx.fillRect(x - 4, y - 4, width + 8, height + 8);
 
         // Sky gradient
         const skyGradient = this.ctx.createLinearGradient(x, y, x, y + height);
@@ -244,7 +764,7 @@ export class RenderSystem {
             this.ctx.fillStyle = '#ffffff';
             for (const star of stars) {
                 const sx = x + star.x * width;
-                const sy = y + star.y * height * 0.6; // Upper portion only
+                const sy = y + star.y * height * 0.5; // Upper portion (above blinds)
                 const twinkle = Math.sin(this.time / 1000 * star.twinkleSpeed + star.twinkleOffset);
                 const alpha = 0.5 + twinkle * 0.5;
                 this.ctx.globalAlpha = alpha;
@@ -257,62 +777,70 @@ export class RenderSystem {
             // Moon
             this.ctx.fillStyle = '#fffacd';
             this.ctx.beginPath();
-            this.ctx.arc(x + width - 25, y + 25, 15, 0, Math.PI * 2);
+            this.ctx.arc(x + width - 30, y + 25, 18, 0, Math.PI * 2);
+            this.ctx.fill();
+
+            // Moon crater details
+            this.ctx.fillStyle = 'rgba(200, 200, 180, 0.5)';
+            this.ctx.beginPath();
+            this.ctx.arc(x + width - 35, y + 22, 4, 0, Math.PI * 2);
+            this.ctx.arc(x + width - 25, y + 30, 3, 0, Math.PI * 2);
             this.ctx.fill();
         }
 
-        // Window glow
-        const glowGradient = this.ctx.createRadialGradient(
-            x + width / 2, y + height / 2, 0,
-            x + width / 2, y + height / 2, width
-        );
-        glowGradient.addColorStop(0, 'rgba(255,255,255,0.1)');
-        glowGradient.addColorStop(1, 'rgba(0,0,0,0)');
-        this.ctx.fillStyle = glowGradient;
-        this.ctx.fillRect(x - 50, y - 50, width + 100, height + 100);
-
         // Window dividers
         this.ctx.strokeStyle = '#2a1a0a';
-        this.ctx.lineWidth = 3;
+        this.ctx.lineWidth = 4;
         this.ctx.beginPath();
         this.ctx.moveTo(x + width / 2, y);
         this.ctx.lineTo(x + width / 2, y + height);
-        this.ctx.moveTo(x, y + height / 2);
-        this.ctx.lineTo(x + width, y + height / 2);
-        this.ctx.stroke();
-    }
-
-    // Draw desk lamp
-    drawLamp(x, y) {
-        // Lamp base
-        this.ctx.fillStyle = '#444';
-        this.ctx.fillRect(x - 15, y + 40, 30, 8);
-
-        // Lamp arm
-        this.ctx.strokeStyle = '#555';
-        this.ctx.lineWidth = 4;
-        this.ctx.beginPath();
-        this.ctx.moveTo(x, y + 40);
-        this.ctx.lineTo(x - 10, y + 10);
-        this.ctx.lineTo(x + 20, y - 10);
         this.ctx.stroke();
 
-        // Lamp shade
-        this.ctx.fillStyle = '#8b4513';
+        // Venetian blinds (half closed)
+        const blindCount = 8;
+        const blindHeight = 6;
+        const blindGap = height / blindCount;
+        const blindAngle = 0.3; // Tilted open
+
+        this.ctx.fillStyle = '#d0c8b8';
+        for (let i = 0; i < blindCount; i++) {
+            const by = y + i * blindGap + blindGap * 0.6;
+            // Left side blinds
+            this.ctx.fillRect(x + 2, by, width / 2 - 4, blindHeight);
+            // Right side blinds
+            this.ctx.fillRect(x + width / 2 + 2, by, width / 2 - 4, blindHeight);
+
+            // Blind shadow/depth
+            this.ctx.fillStyle = '#b0a898';
+            this.ctx.fillRect(x + 2, by + blindHeight - 1, width / 2 - 4, 1);
+            this.ctx.fillRect(x + width / 2 + 2, by + blindHeight - 1, width / 2 - 4, 1);
+            this.ctx.fillStyle = '#d0c8b8';
+        }
+
+        // Blind cord (right side)
+        this.ctx.strokeStyle = '#a09080';
+        this.ctx.lineWidth = 2;
         this.ctx.beginPath();
-        this.ctx.moveTo(x + 5, y - 20);
-        this.ctx.lineTo(x + 40, y);
-        this.ctx.lineTo(x, y);
-        this.ctx.closePath();
+        this.ctx.moveTo(x + width - 15, y);
+        this.ctx.lineTo(x + width - 15, y + height + 5);
+        this.ctx.stroke();
+
+        // Cord tassel
+        this.ctx.fillStyle = '#a09080';
+        this.ctx.beginPath();
+        this.ctx.arc(x + width - 15, y + height + 10, 4, 0, Math.PI * 2);
         this.ctx.fill();
 
-        // Light glow
-        const glowGradient = this.ctx.createRadialGradient(x + 20, y - 5, 0, x + 20, y - 5, 80);
-        glowGradient.addColorStop(0, 'rgba(255, 220, 150, 0.4)');
-        glowGradient.addColorStop(0.5, 'rgba(255, 200, 100, 0.15)');
-        glowGradient.addColorStop(1, 'rgba(255, 180, 50, 0)');
+        // Window glow (light coming in)
+        const glowGradient = this.ctx.createRadialGradient(
+            x + width / 2, y + height / 2, 0,
+            x + width / 2, y + height / 2, width * 1.2
+        );
+        const glowIntensity = colors.lampOn ? 0.05 : 0.15;
+        glowGradient.addColorStop(0, `rgba(255,255,255,${glowIntensity})`);
+        glowGradient.addColorStop(1, 'rgba(0,0,0,0)');
         this.ctx.fillStyle = glowGradient;
-        this.ctx.fillRect(x - 60, y - 60, 160, 160);
+        this.ctx.fillRect(x - 80, y - 30, width + 160, height + 80);
     }
 
     // Draw a retro wall clock
@@ -369,72 +897,136 @@ export class RenderSystem {
         this.ctx.fill();
     }
 
-    // Draw neon-style sign
+    // Draw neon-style sign (repositioned for ego perspective)
     drawNeonSign(x, y) {
-        const glow = Math.sin(this.time / 500) * 0.3 + 0.7;
-
-        // Sign background
-        this.ctx.fillStyle = '#1a1a1a';
-        this.ctx.fillRect(x - 60, y - 30, 120, 60);
-
-        // Neon text
-        this.ctx.font = 'bold 16px monospace';
-        this.ctx.textAlign = 'center';
-
-        // Glow effect
-        this.ctx.shadowColor = `rgba(255, 100, 150, ${glow})`;
-        this.ctx.shadowBlur = 10;
-        this.ctx.fillStyle = `rgba(255, 150, 180, ${glow})`;
-        this.ctx.fillText('SMOKE', x, y - 5);
-        this.ctx.fillText('BREAK', x, y + 15);
-
-        // Reset shadow
-        this.ctx.shadowBlur = 0;
+        // This method is no longer used in the main render
+        // Kept for compatibility but moved to poster/decoration in drawRoom
     }
 
-    // Draw match box
+    // Draw match box (perspective view)
     drawMatchBox(x, y) {
-        // Box
-        this.ctx.fillStyle = '#8b4513';
-        this.ctx.fillRect(x, y, 40, 25);
+        // Box shadow
+        this.ctx.fillStyle = 'rgba(0, 0, 0, 0.2)';
+        this.ctx.fillRect(x + 3, y + 3, 45, 28);
+
+        // Box outer (slightly angled for perspective)
+        const boxGrad = this.ctx.createLinearGradient(x, y, x + 45, y);
+        boxGrad.addColorStop(0, '#6a3510');
+        boxGrad.addColorStop(0.5, '#8b4513');
+        boxGrad.addColorStop(1, '#6a3510');
+        this.ctx.fillStyle = boxGrad;
+        this.ctx.fillRect(x, y, 45, 26);
+
+        // Box inner slide (slightly pulled out)
+        this.ctx.fillStyle = '#5a3008';
+        this.ctx.fillRect(x + 2, y + 2, 41, 22);
+
+        // Striker strip on side
+        this.ctx.fillStyle = '#2a1a0a';
+        this.ctx.fillRect(x + 43, y + 4, 3, 18);
 
         // Label
-        this.ctx.fillStyle = '#ffcc00';
-        this.ctx.fillRect(x + 5, y + 5, 30, 15);
+        const labelGrad = this.ctx.createLinearGradient(x + 5, y, x + 40, y);
+        labelGrad.addColorStop(0, '#e0a800');
+        labelGrad.addColorStop(0.5, '#ffcc00');
+        labelGrad.addColorStop(1, '#e0a800');
+        this.ctx.fillStyle = labelGrad;
+        this.ctx.fillRect(x + 5, y + 4, 35, 18);
 
-        // Text on label
-        this.ctx.fillStyle = '#8b0000';
-        this.ctx.font = 'bold 8px monospace';
-        this.ctx.textAlign = 'center';
-        this.ctx.fillText('MATCH', x + 20, y + 15);
+        // Label border
+        this.ctx.strokeStyle = '#8b0000';
+        this.ctx.lineWidth = 1;
+        this.ctx.strokeRect(x + 5, y + 4, 35, 18);
+
+        // Match flame icon
+        this.ctx.fillStyle = '#ff4500';
+        this.ctx.beginPath();
+        this.ctx.moveTo(x + 22, y + 7);
+        this.ctx.quadraticCurveTo(x + 26, y + 10, x + 25, y + 15);
+        this.ctx.quadraticCurveTo(x + 22, y + 18, x + 19, y + 15);
+        this.ctx.quadraticCurveTo(x + 18, y + 10, x + 22, y + 7);
+        this.ctx.fill();
+
+        // Match stick
+        this.ctx.fillStyle = '#deb887';
+        this.ctx.fillRect(x + 21, y + 15, 3, 6);
+
+        // Visible matches in box
+        this.ctx.fillStyle = '#f0d8a0';
+        for (let i = 0; i < 4; i++) {
+            this.ctx.fillRect(x + 8 + i * 7, y + 22, 2, 4);
+        }
+        // Match heads
+        this.ctx.fillStyle = '#aa2200';
+        for (let i = 0; i < 4; i++) {
+            this.ctx.beginPath();
+            this.ctx.arc(x + 9 + i * 7, y + 22, 2, 0, Math.PI * 2);
+            this.ctx.fill();
+        }
     }
 
-    // Draw ashtray with cigarettes
+    // Draw ashtray with cigarettes (perspective view)
     drawAshtray(x, y, queuedCigarettes) {
-        // Ashtray base
-        this.ctx.fillStyle = '#444';
+        // Ashtray shadow
+        this.ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
         this.ctx.beginPath();
-        this.ctx.ellipse(x, y, 60, 20, 0, 0, Math.PI * 2);
+        this.ctx.ellipse(x + 5, y + 8, 55, 18, 0, 0, Math.PI * 2);
         this.ctx.fill();
 
-        // Ashtray inner
-        this.ctx.fillStyle = '#333';
+        // Ashtray base (glass/crystal look)
+        const baseGrad = this.ctx.createRadialGradient(x - 15, y - 10, 0, x, y, 60);
+        baseGrad.addColorStop(0, '#6a6a6a');
+        baseGrad.addColorStop(0.5, '#4a4a4a');
+        baseGrad.addColorStop(1, '#3a3a3a');
+        this.ctx.fillStyle = baseGrad;
         this.ctx.beginPath();
-        this.ctx.ellipse(x, y - 5, 50, 15, 0, 0, Math.PI * 2);
+        this.ctx.ellipse(x, y, 55, 18, 0, 0, Math.PI * 2);
         this.ctx.fill();
 
-        // Ash/debris
+        // Ashtray rim highlight
+        this.ctx.strokeStyle = '#7a7a7a';
+        this.ctx.lineWidth = 2;
+        this.ctx.beginPath();
+        this.ctx.ellipse(x, y, 55, 18, 0, 0, Math.PI * 2);
+        this.ctx.stroke();
+
+        // Ashtray inner depression
+        this.ctx.fillStyle = '#2a2a2a';
+        this.ctx.beginPath();
+        this.ctx.ellipse(x, y - 3, 45, 14, 0, 0, Math.PI * 2);
+        this.ctx.fill();
+
+        // Ash/debris in ashtray
+        this.ctx.fillStyle = '#555';
+        this.ctx.beginPath();
+        this.ctx.ellipse(x + 5, y - 3, 35, 10, 0, 0, Math.PI * 2);
+        this.ctx.fill();
+
+        // Some ash specks
         this.ctx.fillStyle = '#666';
-        this.ctx.beginPath();
-        this.ctx.ellipse(x, y - 5, 40, 10, 0, 0, Math.PI * 2);
-        this.ctx.fill();
+        for (let i = 0; i < 8; i++) {
+            const ax = x - 25 + (i % 4) * 15 + Math.sin(i * 3) * 5;
+            const ay = y - 8 + Math.floor(i / 4) * 6;
+            this.ctx.beginPath();
+            this.ctx.ellipse(ax, ay, 3 + (i % 3), 1.5, i * 0.5, 0, Math.PI * 2);
+            this.ctx.fill();
+        }
 
-        // Draw queued cigarettes
+        // Cigarette notches on rim
+        this.ctx.fillStyle = '#5a5a5a';
+        const notchAngles = [0.3, Math.PI - 0.3, Math.PI + 0.5];
+        notchAngles.forEach(angle => {
+            const nx = x + Math.cos(angle) * 50;
+            const ny = y + Math.sin(angle) * 16;
+            this.ctx.fillRect(nx - 8, ny - 2, 16, 4);
+        });
+
+        // Draw queued cigarettes resting in ashtray
         for (let i = 0; i < queuedCigarettes; i++) {
-            const angle = (i / queuedCigarettes) * Math.PI - Math.PI / 2;
-            const cx = x + Math.cos(angle) * 30;
-            const cy = y - 5 + Math.sin(angle) * 8;
-            this.drawCigarette(cx, cy, angle + Math.PI / 2, 1, false);
+            const angle = (i / Math.max(queuedCigarettes, 1)) * Math.PI * 0.8 - Math.PI * 0.4;
+            const cx = x + Math.cos(angle) * 28;
+            const cy = y - 4 + Math.sin(angle) * 8;
+            this.drawCigarette(cx, cy, angle + Math.PI / 2 + 0.2, 1, false);
         }
     }
 
@@ -473,106 +1065,236 @@ export class RenderSystem {
         this.ctx.restore();
     }
 
-    // Draw beer glass
+    // Draw beer glass (Pilsner style, perspective view)
     drawBeerGlass(x, y, sipLevel) {
-        const glassWidth = 30;
-        const glassHeight = 50;
-        const fillLevel = 0.3 + sipLevel * 0.6; // Always at least 30% visible
+        const glassWidth = 35;
+        const glassHeight = 60;
+        const fillLevel = 0.3 + sipLevel * 0.65; // Always at least 30% visible
 
-        // Glass
-        this.ctx.fillStyle = 'rgba(200, 230, 255, 0.3)';
-        this.ctx.fillRect(x - glassWidth / 2, y - glassHeight, glassWidth, glassHeight);
+        // Glass shadow
+        this.ctx.fillStyle = 'rgba(0, 0, 0, 0.25)';
+        this.ctx.beginPath();
+        this.ctx.ellipse(x + 5, y + 5, glassWidth / 2 + 3, 8, 0, 0, Math.PI * 2);
+        this.ctx.fill();
+
+        // Glass base
+        this.ctx.fillStyle = 'rgba(200, 230, 255, 0.25)';
+        this.ctx.beginPath();
+        this.ctx.ellipse(x, y, glassWidth / 2, 6, 0, 0, Math.PI * 2);
+        this.ctx.fill();
+
+        // Glass body (slightly tapered)
+        const bodyGrad = this.ctx.createLinearGradient(x - glassWidth / 2, y, x + glassWidth / 2, y);
+        bodyGrad.addColorStop(0, 'rgba(200, 230, 255, 0.2)');
+        bodyGrad.addColorStop(0.3, 'rgba(220, 240, 255, 0.35)');
+        bodyGrad.addColorStop(0.7, 'rgba(220, 240, 255, 0.35)');
+        bodyGrad.addColorStop(1, 'rgba(200, 230, 255, 0.2)');
+        this.ctx.fillStyle = bodyGrad;
+
+        // Tapered glass shape
+        this.ctx.beginPath();
+        this.ctx.moveTo(x - glassWidth / 2, y);
+        this.ctx.lineTo(x - glassWidth / 2 - 3, y - glassHeight);
+        this.ctx.lineTo(x + glassWidth / 2 + 3, y - glassHeight);
+        this.ctx.lineTo(x + glassWidth / 2, y);
+        this.ctx.closePath();
+        this.ctx.fill();
 
         // Beer liquid
         const beerHeight = glassHeight * fillLevel;
-        this.ctx.fillStyle = GAME_CONFIG.COLORS.BEER_LIQUID;
-        this.ctx.fillRect(x - glassWidth / 2 + 2, y - beerHeight, glassWidth - 4, beerHeight - 2);
+        const beerGrad = this.ctx.createLinearGradient(x, y, x, y - beerHeight);
+        beerGrad.addColorStop(0, '#d4960f');
+        beerGrad.addColorStop(0.5, GAME_CONFIG.COLORS.BEER_LIQUID);
+        beerGrad.addColorStop(1, '#eab835');
+        this.ctx.fillStyle = beerGrad;
 
-        // Foam
-        this.ctx.fillStyle = '#fff8dc';
-        this.ctx.fillRect(x - glassWidth / 2 + 2, y - beerHeight - 5, glassWidth - 4, 7);
+        const beerBottomWidth = glassWidth / 2;
+        const beerTopWidth = glassWidth / 2 + (beerHeight / glassHeight) * 3;
+        this.ctx.beginPath();
+        this.ctx.moveTo(x - beerBottomWidth + 2, y - 2);
+        this.ctx.lineTo(x - beerTopWidth, y - beerHeight);
+        this.ctx.lineTo(x + beerTopWidth, y - beerHeight);
+        this.ctx.lineTo(x + beerBottomWidth - 2, y - 2);
+        this.ctx.closePath();
+        this.ctx.fill();
 
-        // Glass highlight
-        this.ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
-        this.ctx.fillRect(x - glassWidth / 2 + 3, y - glassHeight + 5, 3, glassHeight - 10);
+        // Foam head
+        const foamHeight = 8 + sipLevel * 4;
+        this.ctx.fillStyle = '#fffce8';
+        this.ctx.beginPath();
+        this.ctx.ellipse(x, y - beerHeight - foamHeight / 2, beerTopWidth, foamHeight / 2, 0, 0, Math.PI * 2);
+        this.ctx.fill();
+
+        // Foam bubbles
+        this.ctx.fillStyle = '#fff';
+        for (let i = 0; i < 6; i++) {
+            const bx = x - 12 + (i % 3) * 12;
+            const by = y - beerHeight - foamHeight / 2 + Math.sin(i * 2) * 3;
+            this.ctx.beginPath();
+            this.ctx.arc(bx, by, 2 + (i % 2), 0, Math.PI * 2);
+            this.ctx.fill();
+        }
+
+        // Glass rim
+        this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
+        this.ctx.lineWidth = 2;
+        this.ctx.beginPath();
+        this.ctx.ellipse(x, y - glassHeight, glassWidth / 2 + 3, 5, 0, 0, Math.PI * 2);
+        this.ctx.stroke();
+
+        // Glass highlight (reflection)
+        this.ctx.fillStyle = 'rgba(255, 255, 255, 0.25)';
+        this.ctx.beginPath();
+        this.ctx.moveTo(x - glassWidth / 2 + 5, y - 5);
+        this.ctx.lineTo(x - glassWidth / 2 + 2, y - glassHeight + 5);
+        this.ctx.lineTo(x - glassWidth / 2 + 6, y - glassHeight + 5);
+        this.ctx.lineTo(x - glassWidth / 2 + 9, y - 5);
+        this.ctx.closePath();
+        this.ctx.fill();
+
+        // Condensation droplets
+        this.ctx.fillStyle = 'rgba(200, 230, 255, 0.4)';
+        const dropletSeed = Math.floor(this.time / 2000);
+        for (let i = 0; i < 5; i++) {
+            const dx = x - 10 + ((i * 7 + dropletSeed) % 20);
+            const dy = y - 15 - (i * 8);
+            this.ctx.beginPath();
+            this.ctx.ellipse(dx, dy, 2, 3, 0, 0, Math.PI * 2);
+            this.ctx.fill();
+        }
     }
 
-    // Draw a hand holding something
+    // Draw a hand holding something (ego perspective - closer, bigger)
     drawHand(x, y, drunkLevel) {
-        const wobble = getWobbleOffset(this.time, drunkLevel, 2);
+        const wobble = getWobbleOffset(this.time, drunkLevel, 3);
         const handX = x + wobble.x;
         const handY = y + wobble.y;
 
         this.ctx.save();
         this.ctx.translate(handX, handY);
 
-        // Skin tone
-        this.ctx.fillStyle = '#e8beac';
+        // Scale up for closer perspective
+        this.ctx.scale(1.3, 1.3);
+
+        // Hand shadow
+        this.ctx.fillStyle = 'rgba(0, 0, 0, 0.2)';
+        this.ctx.beginPath();
+        this.ctx.ellipse(5, 20, 28, 22, 0, 0, Math.PI * 2);
+        this.ctx.fill();
+
+        // Skin tone gradient
+        const skinGrad = this.ctx.createRadialGradient(0, 10, 0, 0, 15, 40);
+        skinGrad.addColorStop(0, ROOM_COLORS.SKIN_TONE);
+        skinGrad.addColorStop(1, ROOM_COLORS.SKIN_TONE_DARK);
+        this.ctx.fillStyle = skinGrad;
 
         // Palm
         this.ctx.beginPath();
-        this.ctx.ellipse(0, 15, 25, 20, 0, 0, Math.PI * 2);
+        this.ctx.ellipse(0, 15, 28, 22, 0, 0, Math.PI * 2);
         this.ctx.fill();
 
-        // Fingers (curled around cigarette)
+        // Wrist (coming from below - ego view)
+        this.ctx.fillStyle = ROOM_COLORS.SKIN_TONE;
+        this.ctx.fillRect(-20, 25, 40, 30);
+
+        // Fingers (curled around cigarette, more natural pose)
         const fingerPositions = [
-            { x: -15, y: -5, angle: -0.3 },
-            { x: -8, y: -12, angle: -0.15 },
-            { x: 2, y: -15, angle: 0 },
-            { x: 12, y: -10, angle: 0.2 }
+            { x: -18, y: -3, angle: -0.35, length: 24 },
+            { x: -10, y: -12, angle: -0.2, length: 28 },
+            { x: 0, y: -16, angle: 0, length: 30 },
+            { x: 10, y: -12, angle: 0.2, length: 26 }
         ];
 
-        fingerPositions.forEach(f => {
+        fingerPositions.forEach((f, idx) => {
             this.ctx.save();
             this.ctx.translate(f.x, f.y);
             this.ctx.rotate(f.angle);
-            this.ctx.fillStyle = '#e8beac';
-            this.ctx.fillRect(-4, -20, 8, 22);
+
+            // Finger gradient
+            const fingerGrad = this.ctx.createLinearGradient(-5, 0, 5, 0);
+            fingerGrad.addColorStop(0, ROOM_COLORS.SKIN_TONE_DARK);
+            fingerGrad.addColorStop(0.5, ROOM_COLORS.SKIN_TONE);
+            fingerGrad.addColorStop(1, ROOM_COLORS.SKIN_TONE_DARK);
+            this.ctx.fillStyle = fingerGrad;
+
+            // Finger body
+            this.ctx.fillRect(-5, -f.length, 10, f.length + 2);
+
             // Fingertip
             this.ctx.beginPath();
-            this.ctx.arc(0, -20, 4, 0, Math.PI * 2);
+            this.ctx.arc(0, -f.length, 5, 0, Math.PI * 2);
             this.ctx.fill();
+
+            // Knuckle line
+            this.ctx.strokeStyle = 'rgba(0, 0, 0, 0.1)';
+            this.ctx.lineWidth = 1;
+            this.ctx.beginPath();
+            this.ctx.moveTo(-4, -f.length * 0.4);
+            this.ctx.lineTo(4, -f.length * 0.4);
+            this.ctx.stroke();
+
+            // Fingernail
+            this.ctx.fillStyle = '#f0d8c8';
+            this.ctx.beginPath();
+            this.ctx.ellipse(0, -f.length - 2, 3, 4, 0, Math.PI, Math.PI * 2);
+            this.ctx.fill();
+
             this.ctx.restore();
         });
 
-        // Thumb
+        // Thumb (more prominent)
         this.ctx.save();
-        this.ctx.translate(20, 5);
-        this.ctx.rotate(0.5);
-        this.ctx.fillRect(-4, -15, 9, 18);
+        this.ctx.translate(22, 3);
+        this.ctx.rotate(0.6);
+
+        const thumbGrad = this.ctx.createLinearGradient(-5, 0, 7, 0);
+        thumbGrad.addColorStop(0, ROOM_COLORS.SKIN_TONE_DARK);
+        thumbGrad.addColorStop(0.5, ROOM_COLORS.SKIN_TONE);
+        thumbGrad.addColorStop(1, ROOM_COLORS.SKIN_TONE_DARK);
+        this.ctx.fillStyle = thumbGrad;
+
+        this.ctx.fillRect(-5, -18, 12, 22);
         this.ctx.beginPath();
-        this.ctx.arc(0, -15, 4.5, 0, Math.PI * 2);
+        this.ctx.arc(1, -18, 6, 0, Math.PI * 2);
         this.ctx.fill();
+
+        // Thumbnail
+        this.ctx.fillStyle = '#f0d8c8';
+        this.ctx.beginPath();
+        this.ctx.ellipse(1, -20, 4, 5, 0, Math.PI, Math.PI * 2);
+        this.ctx.fill();
+
         this.ctx.restore();
 
         this.ctx.restore();
     }
 
-    // Draw current cigarette being smoked (in "hand")
+    // Draw current cigarette being smoked (ego perspective - in hand)
     drawCurrentCigarette(x, y, capacity, isSmoking, drunkLevel) {
         // Hand wobble when drunk
-        const wobble = getWobbleOffset(this.time, drunkLevel, 2);
+        const wobble = getWobbleOffset(this.time, drunkLevel, 3);
 
-        // Draw hand first
-        this.drawHand(x - 20, y + 10, drunkLevel);
+        // Draw hand first (positioned for ego view - coming from lower right)
+        this.drawHand(x - 30, y + 20, drunkLevel);
 
+        // Cigarette positioned between fingers
         this.drawCigarette(
             x + wobble.x,
-            y + wobble.y,
-            -0.3 + Math.sin(this.time / 1000) * 0.05,
+            y + wobble.y - 8,
+            -0.25 + Math.sin(this.time / 1000) * 0.04,
             capacity / GAME_CONFIG.CIGARETTE_CAPACITY,
             true
         );
 
-        // Add smoke
+        // Add smoke (rising up from ego view)
         if (isSmoking) {
-            for (let i = 0; i < 3; i++) {
-                this.addSmokeParticle(x + 35 + wobble.x, y - 5 + wobble.y);
+            for (let i = 0; i < 4; i++) {
+                this.addSmokeParticle(x + 40 + wobble.x + (Math.random() - 0.5) * 10, y - 15 + wobble.y);
             }
         } else {
-            // Idle smoke
-            if (Math.random() < 0.1) {
-                this.addSmokeParticle(x + 35 + wobble.x, y - 5 + wobble.y);
+            // Idle smoke trail
+            if (Math.random() < 0.15) {
+                this.addSmokeParticle(x + 38 + wobble.x, y - 12 + wobble.y);
             }
         }
     }
@@ -976,6 +1698,34 @@ export class RenderSystem {
         const r = Math.min(255, Math.floor(parseInt(hex.slice(1, 3), 16) * factor));
         const g = Math.min(255, Math.floor(parseInt(hex.slice(3, 5), 16) * factor));
         const b = Math.min(255, Math.floor(parseInt(hex.slice(5, 7), 16) * factor));
+        return `rgb(${r},${g},${b})`;
+    }
+
+    // Blend two hex colors together
+    blendColors(color1, color2, ratio) {
+        // Parse colors to RGB
+        const parse = (c) => {
+            if (c.startsWith('rgb')) {
+                const match = c.match(/\d+/g);
+                return match ? { r: parseInt(match[0]), g: parseInt(match[1]), b: parseInt(match[2]) } : { r: 0, g: 0, b: 0 };
+            }
+            if (c.startsWith('#')) {
+                return {
+                    r: parseInt(c.slice(1, 3), 16),
+                    g: parseInt(c.slice(3, 5), 16),
+                    b: parseInt(c.slice(5, 7), 16)
+                };
+            }
+            return { r: 0, g: 0, b: 0 };
+        };
+
+        const c1 = parse(color1);
+        const c2 = parse(color2);
+
+        const r = Math.round(c1.r * (1 - ratio) + c2.r * ratio);
+        const g = Math.round(c1.g * (1 - ratio) + c2.g * ratio);
+        const b = Math.round(c1.b * (1 - ratio) + c2.b * ratio);
+
         return `rgb(${r},${g},${b})`;
     }
 

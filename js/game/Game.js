@@ -254,9 +254,9 @@ export class Game {
                     this.audio.playSmokeSound();
                     this.achievements.onSmoke(this.player);
 
-                    // Add smoke particles
+                    // Add smoke particles (new position for ego perspective)
                     for (let i = 0; i < 5; i++) {
-                        this.renderer.addSmokeParticle(500, 380);
+                        this.renderer.addSmokeParticle(430, 390);
                     }
                 }
             }
@@ -526,23 +526,26 @@ export class Game {
         const dayNightColors = this.dayNight.getCurrentColors();
         const stars = this.dayNight.shouldShowStars() ? this.dayNight.getStars() : [];
 
+        // Pass drunk level to renderer for belly sizing
+        this.renderer.setDrunkLevel(this.player.drunkenness);
+
         // Apply drunk/shake effects
         this.renderer.applyScreenEffects(this.player.drunkenness);
 
-        // Draw scene with day/night cycle
+        // Draw scene with day/night cycle (room, table, belly)
         this.renderer.drawTable(dayNightColors, stars);
 
-        // Draw ashtray with queued cigarettes
-        this.renderer.drawAshtray(300, 450, this.player.queuedCigarettes);
+        // Draw ashtray with queued cigarettes (repositioned for perspective table)
+        this.renderer.drawAshtray(280, 360, this.player.queuedCigarettes);
 
-        // Draw beer glass
+        // Draw beer glass (repositioned)
         const beerLevel = 1 - (this.player.totalBeersConsumed % 1);
-        this.renderer.drawBeerGlass(550, 440, beerLevel);
+        this.renderer.drawBeerGlass(520, 380, beerLevel);
 
-        // Draw current cigarette if player has one
+        // Draw current cigarette if player has one (closer to player, in front)
         if (this.player.hasLitCigarette) {
             this.renderer.drawCurrentCigarette(
-                480, 380,
+                400, 400,
                 this.player.currentCigarette,
                 this.player.isSmoking,
                 this.player.drunkenness
