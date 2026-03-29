@@ -5,8 +5,8 @@ import { TIME_COLORS } from './DayNightSystem.js';
 // Screen zones for ego perspective layout (Y coordinates)
 const ZONES = {
     WALL: { y: 0, height: 200 },
-    TABLE: { y: 200, height: 250 },
-    BELLY: { y: 450, height: 90 },
+    TABLE: { y: 200, height: 220 },
+    BELLY: { y: 420, height: 120 },
     HUD: { y: 540, height: 60 }
 };
 
@@ -17,15 +17,17 @@ const ROOM_COLORS = {
     WALLPAPER_ACCENT: '#6a5a4a',
     RADIATOR: '#c0c0c0',
     RADIATOR_DARK: '#808080',
-    TV_CABINET: '#3a2a1a',
-    TV_SCREEN_OFF: '#1a1a1a',
+    TV_CABINET: '#1a1a1a',
+    TV_CABINET_LIGHT: '#2a2a2a',
+    TV_SCREEN_OFF: '#0a0a0a',
     SHELF: '#5a4030',
     BOTTLE_GREEN: '#2a5a2a',
     BOTTLE_BROWN: '#5a3a1a',
-    SKIN_TONE: '#e8beac',
-    SKIN_TONE_DARK: '#d4a090',
-    TSHIRT_GRAY: '#4a4a4a',
-    TSHIRT_STAIN: '#3a3a3a',
+    SKIN_TONE: '#f0c8b8',
+    SKIN_TONE_DARK: '#c89080',
+    SKIN_HIGHLIGHT: '#ffd8c8',
+    TSHIRT_GRAY: '#3a3a3a',
+    TSHIRT_STAIN: '#2a2a2a',
     BELLY_HAIR: '#6a5a4a'
 };
 
@@ -269,123 +271,306 @@ export class RenderSystem {
         }
     }
 
-    // Draw CRT TV with static/animated content
+    // Draw CRT TV with static/animated content - 3D BOX FORM
     drawTV(x, y, colors) {
-        const tvWidth = 140;
-        const tvHeight = 110;
-        const screenWidth = 100;
-        const screenHeight = 75;
-        const screenX = x + (tvWidth - screenWidth) / 2;
-        const screenY = y + 20;
+        const tvWidth = 180;
+        const tvHeight = 140;
+        const tvDepth = 35; // Visible depth (perspective)
+        const screenWidth = 115;
+        const screenHeight = 85;
 
-        // TV stand/shelf
-        this.ctx.fillStyle = '#2a1a0a';
-        this.ctx.fillRect(x - 10, y + tvHeight - 5, tvWidth + 20, 15);
+        // 3D perspective offset
+        const depthX = tvDepth * 0.7;
+        const depthY = tvDepth * 0.5;
 
-        // TV cabinet (wood grain)
-        const cabinetGrad = this.ctx.createLinearGradient(x, y, x + tvWidth, y);
-        cabinetGrad.addColorStop(0, '#4a3020');
-        cabinetGrad.addColorStop(0.5, '#5a4030');
-        cabinetGrad.addColorStop(1, '#4a3020');
-        this.ctx.fillStyle = cabinetGrad;
+        // === TV SHADOW ON WALL ===
+        this.ctx.fillStyle = 'rgba(0, 0, 0, 0.35)';
+        this.ctx.beginPath();
+        this.ctx.moveTo(x + 12, y + 12);
+        this.ctx.lineTo(x + tvWidth + 12, y + 12);
+        this.ctx.lineTo(x + tvWidth + 12, y + tvHeight + 12);
+        this.ctx.lineTo(x + 12, y + tvHeight + 12);
+        this.ctx.closePath();
+        this.ctx.fill();
+
+        // === TV STAND/SHELF ===
+        this.ctx.fillStyle = '#1a1a1a';
+        this.ctx.fillRect(x - 15, y + tvHeight + 5, tvWidth + 30, 15);
+        // Stand top highlight
+        this.ctx.fillStyle = '#333';
+        this.ctx.fillRect(x - 12, y + tvHeight + 5, tvWidth + 24, 3);
+
+        // === 3D TV BODY ===
+
+        // TOP FACE (visible because we look slightly down)
+        const topGrad = this.ctx.createLinearGradient(x, y - depthY, x, y);
+        topGrad.addColorStop(0, '#4a4a4a');
+        topGrad.addColorStop(1, '#2a2a2a');
+        this.ctx.fillStyle = topGrad;
+        this.ctx.beginPath();
+        this.ctx.moveTo(x, y);
+        this.ctx.lineTo(x + depthX, y - depthY);
+        this.ctx.lineTo(x + tvWidth + depthX, y - depthY);
+        this.ctx.lineTo(x + tvWidth, y);
+        this.ctx.closePath();
+        this.ctx.fill();
+        // Top edge line
+        this.ctx.strokeStyle = '#555';
+        this.ctx.lineWidth = 1;
+        this.ctx.stroke();
+
+        // RIGHT SIDE FACE (visible depth)
+        const rightGrad = this.ctx.createLinearGradient(x + tvWidth, y, x + tvWidth + depthX, y);
+        rightGrad.addColorStop(0, '#252525');
+        rightGrad.addColorStop(1, '#1a1a1a');
+        this.ctx.fillStyle = rightGrad;
+        this.ctx.beginPath();
+        this.ctx.moveTo(x + tvWidth, y);
+        this.ctx.lineTo(x + tvWidth + depthX, y - depthY);
+        this.ctx.lineTo(x + tvWidth + depthX, y + tvHeight - depthY);
+        this.ctx.lineTo(x + tvWidth, y + tvHeight);
+        this.ctx.closePath();
+        this.ctx.fill();
+        this.ctx.strokeStyle = '#333';
+        this.ctx.stroke();
+
+        // FRONT FACE (main TV body)
+        const frontGrad = this.ctx.createLinearGradient(x, y, x, y + tvHeight);
+        frontGrad.addColorStop(0, '#3a3a3a');
+        frontGrad.addColorStop(0.5, '#2a2a2a');
+        frontGrad.addColorStop(1, '#1a1a1a');
+        this.ctx.fillStyle = frontGrad;
         this.ctx.fillRect(x, y, tvWidth, tvHeight);
 
-        // TV screen bezel
-        this.ctx.fillStyle = '#1a1a1a';
-        this.ctx.fillRect(screenX - 5, screenY - 5, screenWidth + 10, screenHeight + 10);
+        // Front face border
+        this.ctx.strokeStyle = '#4a4a4a';
+        this.ctx.lineWidth = 2;
+        this.ctx.strokeRect(x, y, tvWidth, tvHeight);
 
-        // TV screen with static
+        // === SCREEN AREA ===
+        const screenX = x + 15;
+        const screenY = y + 18;
+
+        // Screen bezel (thick plastic frame around screen)
+        const bezelGrad = this.ctx.createLinearGradient(screenX - 12, screenY, screenX - 12, screenY + screenHeight);
+        bezelGrad.addColorStop(0, '#1a1a1a');
+        bezelGrad.addColorStop(0.5, '#0a0a0a');
+        bezelGrad.addColorStop(1, '#151515');
+        this.ctx.fillStyle = bezelGrad;
+        this.ctx.fillRect(screenX - 12, screenY - 12, screenWidth + 24, screenHeight + 24);
+
+        // Bezel inner edge (chamfer effect)
+        this.ctx.strokeStyle = '#2a2a2a';
+        this.ctx.lineWidth = 2;
+        this.ctx.strokeRect(screenX - 10, screenY - 10, screenWidth + 20, screenHeight + 20);
+
+        // === CRT SCREEN (convex/bulging) ===
+        // The CRT screen bulges outward - draw as a subtle curved shape
+
+        // Screen base
+        this.ctx.fillStyle = '#0a0a12';
+        this.ctx.fillRect(screenX, screenY, screenWidth, screenHeight);
+
+        // Draw the actual content
         this.drawTVScreen(screenX, screenY, screenWidth, screenHeight, colors);
 
-        // TV antenna
-        this.ctx.strokeStyle = '#555';
+        // CRT glass curvature effect (highlight on curved glass)
+        const curveGrad = this.ctx.createRadialGradient(
+            screenX + screenWidth * 0.3, screenY + screenHeight * 0.3, 0,
+            screenX + screenWidth / 2, screenY + screenHeight / 2, screenWidth
+        );
+        curveGrad.addColorStop(0, 'rgba(255, 255, 255, 0.15)');
+        curveGrad.addColorStop(0.3, 'rgba(255, 255, 255, 0.05)');
+        curveGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+        this.ctx.fillStyle = curveGrad;
+        this.ctx.fillRect(screenX, screenY, screenWidth, screenHeight);
+
+        // Screen edge shadow (glass is curved, edges are darker)
+        this.ctx.strokeStyle = 'rgba(0, 0, 0, 0.5)';
         this.ctx.lineWidth = 3;
+        this.ctx.strokeRect(screenX + 1, screenY + 1, screenWidth - 2, screenHeight - 2);
+
+        // === CONTROL PANEL (right side of front face) ===
+        const panelX = screenX + screenWidth + 15;
+        const panelY = screenY;
+        const panelWidth = tvWidth - screenWidth - 35;
+        const panelHeight = screenHeight;
+
+        // Panel background
+        this.ctx.fillStyle = '#222';
+        this.ctx.fillRect(panelX, panelY, panelWidth, panelHeight);
+
+        // Control knobs
+        const knobX = panelX + panelWidth / 2;
+        for (let i = 0; i < 2; i++) {
+            const knobY = panelY + 25 + i * 35;
+
+            // Knob base
+            this.ctx.fillStyle = '#111';
+            this.ctx.beginPath();
+            this.ctx.arc(knobX, knobY, 12, 0, Math.PI * 2);
+            this.ctx.fill();
+
+            // Knob face
+            const knobGrad = this.ctx.createRadialGradient(knobX - 3, knobY - 3, 0, knobX, knobY, 10);
+            knobGrad.addColorStop(0, '#666');
+            knobGrad.addColorStop(1, '#333');
+            this.ctx.fillStyle = knobGrad;
+            this.ctx.beginPath();
+            this.ctx.arc(knobX, knobY, 9, 0, Math.PI * 2);
+            this.ctx.fill();
+
+            // Knob indicator notch
+            this.ctx.strokeStyle = '#888';
+            this.ctx.lineWidth = 2;
+            this.ctx.beginPath();
+            this.ctx.moveTo(knobX, knobY - 6);
+            this.ctx.lineTo(knobX, knobY - 2);
+            this.ctx.stroke();
+        }
+
+        // Power LED
+        this.ctx.fillStyle = '#00ff00';
+        this.ctx.shadowColor = '#00ff00';
+        this.ctx.shadowBlur = 5;
         this.ctx.beginPath();
-        this.ctx.moveTo(x + tvWidth / 2, y);
-        this.ctx.lineTo(x + tvWidth / 2 - 25, y - 35);
-        this.ctx.moveTo(x + tvWidth / 2, y);
-        this.ctx.lineTo(x + tvWidth / 2 + 25, y - 35);
+        this.ctx.arc(knobX, panelY + panelHeight - 12, 3, 0, Math.PI * 2);
+        this.ctx.fill();
+        this.ctx.shadowBlur = 0;
+
+        // === ANTENNA ===
+        this.ctx.strokeStyle = '#777';
+        this.ctx.lineWidth = 4;
+        this.ctx.lineCap = 'round';
+
+        // Antenna base on top
+        this.ctx.fillStyle = '#333';
+        this.ctx.beginPath();
+        this.ctx.ellipse(x + tvWidth / 2 + depthX / 2, y - depthY / 2 - 3, 12, 6, 0, 0, Math.PI * 2);
+        this.ctx.fill();
+
+        // Left antenna
+        this.ctx.beginPath();
+        this.ctx.moveTo(x + tvWidth / 2 + depthX / 2 - 5, y - depthY / 2 - 5);
+        this.ctx.lineTo(x + tvWidth / 2 - 35, y - depthY - 50);
+        this.ctx.stroke();
+
+        // Right antenna
+        this.ctx.beginPath();
+        this.ctx.moveTo(x + tvWidth / 2 + depthX / 2 + 5, y - depthY / 2 - 5);
+        this.ctx.lineTo(x + tvWidth / 2 + depthX + 35, y - depthY - 50);
         this.ctx.stroke();
 
         // Antenna tips
-        this.ctx.fillStyle = '#666';
+        this.ctx.fillStyle = '#aaa';
         this.ctx.beginPath();
-        this.ctx.arc(x + tvWidth / 2 - 25, y - 35, 4, 0, Math.PI * 2);
-        this.ctx.arc(x + tvWidth / 2 + 25, y - 35, 4, 0, Math.PI * 2);
+        this.ctx.arc(x + tvWidth / 2 - 35, y - depthY - 50, 5, 0, Math.PI * 2);
+        this.ctx.fill();
+        this.ctx.beginPath();
+        this.ctx.arc(x + tvWidth / 2 + depthX + 35, y - depthY - 50, 5, 0, Math.PI * 2);
         this.ctx.fill();
 
-        // TV control knobs
-        this.ctx.fillStyle = '#333';
-        this.ctx.beginPath();
-        this.ctx.arc(x + tvWidth - 20, y + tvHeight - 25, 6, 0, Math.PI * 2);
-        this.ctx.arc(x + tvWidth - 20, y + tvHeight - 45, 6, 0, Math.PI * 2);
-        this.ctx.fill();
-
-        // TV glow effect on surrounding area
-        const glowIntensity = colors.lampOn ? 0.15 : 0.25;
+        // === TV GLOW ===
+        const glowIntensity = colors.lampOn ? 0.15 : 0.3;
         const glowGrad = this.ctx.createRadialGradient(
             screenX + screenWidth / 2, screenY + screenHeight / 2, 0,
-            screenX + screenWidth / 2, screenY + screenHeight / 2, 150
+            screenX + screenWidth / 2, screenY + screenHeight / 2, 180
         );
-        glowGrad.addColorStop(0, `rgba(100, 150, 200, ${glowIntensity})`);
-        glowGrad.addColorStop(1, 'rgba(100, 150, 200, 0)');
+        glowGrad.addColorStop(0, `rgba(100, 150, 220, ${glowIntensity})`);
+        glowGrad.addColorStop(0.6, `rgba(70, 110, 180, ${glowIntensity * 0.4})`);
+        glowGrad.addColorStop(1, 'rgba(50, 80, 150, 0)');
         this.ctx.fillStyle = glowGrad;
-        this.ctx.fillRect(0, 0, 300, 200);
+        this.ctx.fillRect(0, 0, 380, 250);
+
+        // Glow on the wall behind TV
+        this.ctx.fillStyle = `rgba(80, 120, 180, ${glowIntensity * 0.3})`;
+        this.ctx.fillRect(x - 30, y - 30, tvWidth + 60, 30);
     }
 
     // Draw TV screen content with static
     drawTVScreen(x, y, width, height, colors) {
-        // Base screen color
-        this.ctx.fillStyle = '#0a0a15';
+        // Base screen color - slightly brighter blue tint
+        const baseGrad = this.ctx.createRadialGradient(
+            x + width / 2, y + height / 2, 0,
+            x + width / 2, y + height / 2, width
+        );
+        baseGrad.addColorStop(0, '#1a1a30');
+        baseGrad.addColorStop(1, '#0a0a18');
+        this.ctx.fillStyle = baseGrad;
         this.ctx.fillRect(x, y, width, height);
 
-        // Static noise pattern
-        const staticIntensity = 0.3 + Math.sin(this.tvStaticFrame) * 0.1;
+        // Static noise pattern - more intense
+        const staticIntensity = 0.4 + Math.sin(this.tvStaticFrame) * 0.15;
         const drunkDistort = this.currentDrunkLevel / 100 * 0.3;
 
-        // Draw static lines
-        for (let sy = 0; sy < height; sy += 3) {
-            const lineAlpha = (Math.sin(sy * 0.5 + this.tvStaticFrame * 2) + 1) * 0.15 + staticIntensity * 0.1;
-            this.ctx.fillStyle = `rgba(200, 200, 220, ${lineAlpha + drunkDistort * 0.2})`;
+        // Draw static lines - brighter
+        for (let sy = 0; sy < height; sy += 2) {
+            const lineAlpha = (Math.sin(sy * 0.5 + this.tvStaticFrame * 2) + 1) * 0.2 + staticIntensity * 0.15;
+            this.ctx.fillStyle = `rgba(220, 220, 240, ${lineAlpha + drunkDistort * 0.2})`;
             this.ctx.fillRect(x, y + sy, width, 1);
         }
 
-        // Random noise pixels
-        const noiseCount = 100 + this.currentDrunkLevel;
+        // Random noise pixels - more and brighter
+        const noiseCount = 150 + this.currentDrunkLevel;
         for (let i = 0; i < noiseCount; i++) {
             const seed = (i * 17 + Math.floor(this.tvStaticFrame * 3)) % 1000;
             const nx = x + (seed % width);
             const ny = y + (Math.floor(seed / width) % height);
-            const brightness = 100 + ((seed * 7) % 155);
-            this.ctx.fillStyle = `rgb(${brightness}, ${brightness}, ${brightness + 20})`;
-            this.ctx.fillRect(nx, ny, 2, 2);
+            const brightness = 140 + ((seed * 7) % 115);
+            this.ctx.fillStyle = `rgb(${brightness}, ${brightness}, ${brightness + 30})`;
+            this.ctx.fillRect(nx, ny, 3, 3);
         }
 
-        // Occasional "show" content - simple test card pattern
-        if (Math.sin(this.time / 5000) > 0.3) {
-            // Color bars (German TV test card style)
+        // More frequent "show" content - test card pattern
+        if (Math.sin(this.time / 4000) > 0.1) {
+            // Color bars (German TV test card style) - brighter
             const barWidth = width / 7;
             const barColors = ['#fff', '#ff0', '#0ff', '#0f0', '#f0f', '#f00', '#00f'];
             barColors.forEach((color, i) => {
                 this.ctx.fillStyle = color;
-                this.ctx.globalAlpha = 0.4;
-                this.ctx.fillRect(x + i * barWidth, y + height * 0.3, barWidth, height * 0.4);
+                this.ctx.globalAlpha = 0.6;
+                this.ctx.fillRect(x + i * barWidth, y + height * 0.25, barWidth, height * 0.5);
             });
             this.ctx.globalAlpha = 1;
+
+            // ARD/ZDF style channel indicator
+            this.ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+            this.ctx.font = 'bold 12px monospace';
+            this.ctx.fillText('ARD', x + 8, y + 15);
         }
+
+        // Rolling scan line - classic CRT effect
+        const scanY = (this.tvStaticFrame * 30) % (height + 20) - 10;
+        const scanGrad = this.ctx.createLinearGradient(x, y + scanY - 5, x, y + scanY + 5);
+        scanGrad.addColorStop(0, 'rgba(255, 255, 255, 0)');
+        scanGrad.addColorStop(0.5, 'rgba(255, 255, 255, 0.15)');
+        scanGrad.addColorStop(1, 'rgba(255, 255, 255, 0)');
+        this.ctx.fillStyle = scanGrad;
+        this.ctx.fillRect(x, y + scanY - 5, width, 10);
 
         // Scanline flicker
-        if (Math.random() < 0.05 + drunkDistort * 0.1) {
+        if (Math.random() < 0.08 + drunkDistort * 0.1) {
             const flickerY = y + Math.random() * height;
-            this.ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
-            this.ctx.fillRect(x, flickerY, width, 2);
+            this.ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
+            this.ctx.fillRect(x, flickerY, width, 3);
         }
 
-        // Screen reflection
-        const reflectGrad = this.ctx.createLinearGradient(x, y, x + width, y + height);
-        reflectGrad.addColorStop(0, 'rgba(255, 255, 255, 0.05)');
-        reflectGrad.addColorStop(0.3, 'rgba(255, 255, 255, 0)');
+        // Screen curvature/reflection effect
+        const reflectGrad = this.ctx.createLinearGradient(x, y, x + width * 0.4, y + height * 0.4);
+        reflectGrad.addColorStop(0, 'rgba(255, 255, 255, 0.12)');
+        reflectGrad.addColorStop(0.5, 'rgba(255, 255, 255, 0.03)');
+        reflectGrad.addColorStop(1, 'rgba(255, 255, 255, 0)');
         this.ctx.fillStyle = reflectGrad;
+        this.ctx.fillRect(x, y, width, height);
+
+        // Screen edge vignette
+        const vignetteGrad = this.ctx.createRadialGradient(
+            x + width / 2, y + height / 2, width * 0.3,
+            x + width / 2, y + height / 2, width * 0.8
+        );
+        vignetteGrad.addColorStop(0, 'rgba(0, 0, 0, 0)');
+        vignetteGrad.addColorStop(1, 'rgba(0, 0, 0, 0.4)');
+        this.ctx.fillStyle = vignetteGrad;
         this.ctx.fillRect(x, y, width, height);
     }
 
@@ -625,117 +810,209 @@ export class RenderSystem {
         this.drawMatchBox(620, 340);
     }
 
-    // Draw beer belly (player's body, foreground)
+    // Draw beer belly (player's body, foreground) - EGO PERSPECTIVE
+    // Looking down at your own belly = see a dome/sphere shape
     drawBeerBelly(drunkLevel) {
         const bellyY = ZONES.BELLY.y;
         const bellyHeight = ZONES.BELLY.height;
 
         // Breathing animation
-        const breathAmount = Math.sin(this.bellyBreathPhase) * 3;
+        const breathAmount = Math.sin(this.bellyBreathPhase) * 4;
 
-        // Belly gets slightly bigger when drunk
-        const drunkBulge = drunkLevel / 100 * 8;
+        // Belly gets bigger when drunk
+        const drunkBulge = drunkLevel / 100 * 12;
 
-        // T-shirt (upper portion)
-        const shirtY = bellyY - 15;
-        const shirtHeight = 50;
+        // === T-SHIRT ===
+        const shirtY = bellyY - 30;
+        const shirtHeight = 45;
 
-        // T-shirt gradient (gray, stained)
+        // T-shirt base
         const shirtGrad = this.ctx.createLinearGradient(0, shirtY, 0, shirtY + shirtHeight);
-        shirtGrad.addColorStop(0, ROOM_COLORS.TSHIRT_GRAY);
-        shirtGrad.addColorStop(0.3, ROOM_COLORS.TSHIRT_STAIN);
-        shirtGrad.addColorStop(0.7, ROOM_COLORS.TSHIRT_GRAY);
-        shirtGrad.addColorStop(1, ROOM_COLORS.TSHIRT_STAIN);
+        shirtGrad.addColorStop(0, '#404040');
+        shirtGrad.addColorStop(0.5, '#353535');
+        shirtGrad.addColorStop(1, '#2a2a2a');
         this.ctx.fillStyle = shirtGrad;
         this.ctx.fillRect(0, shirtY, this.width, shirtHeight + breathAmount);
 
-        // Shirt wrinkles/folds
-        this.ctx.strokeStyle = 'rgba(0, 0, 0, 0.15)';
-        this.ctx.lineWidth = 1;
-        for (let i = 0; i < 5; i++) {
-            const wx = 150 + i * 120;
+        // Shirt wrinkles radiating from belly bulge
+        this.ctx.strokeStyle = 'rgba(0, 0, 0, 0.3)';
+        this.ctx.lineWidth = 1.5;
+        for (let i = 0; i < 8; i++) {
+            const angle = (i / 8) * Math.PI;
+            const startX = this.width / 2 + Math.cos(angle) * 60;
+            const startY = shirtY + shirtHeight - 5;
+            const endX = this.width / 2 + Math.cos(angle) * 200;
+            const endY = shirtY + 5;
             this.ctx.beginPath();
-            this.ctx.moveTo(wx, shirtY + 10);
-            this.ctx.quadraticCurveTo(wx + 15, shirtY + 25 + breathAmount, wx - 10, shirtY + shirtHeight);
+            this.ctx.moveTo(startX, startY);
+            this.ctx.quadraticCurveTo(
+                (startX + endX) / 2 + Math.sin(i) * 20,
+                (startY + endY) / 2,
+                endX, endY
+            );
             this.ctx.stroke();
         }
 
-        // Stain spots on shirt
-        this.ctx.fillStyle = 'rgba(60, 50, 40, 0.3)';
+        // Stain spots
+        this.ctx.fillStyle = 'rgba(60, 50, 30, 0.35)';
         this.ctx.beginPath();
-        this.ctx.ellipse(300, shirtY + 30, 15, 10, 0.2, 0, Math.PI * 2);
-        this.ctx.fill();
-        this.ctx.beginPath();
-        this.ctx.ellipse(520, shirtY + 25, 12, 8, -0.3, 0, Math.PI * 2);
+        this.ctx.ellipse(320, shirtY + 25, 20, 12, 0.3, 0, Math.PI * 2);
         this.ctx.fill();
 
-        // Exposed belly below shirt
-        const bellyExposedY = shirtY + shirtHeight - 5;
-        const bellyCurveHeight = bellyHeight - shirtHeight + 20 + drunkBulge + breathAmount;
+        // === EXPOSED BELLY - THE DOME ===
+        const bellyCenterX = this.width / 2;
+        const bellyCenterY = bellyY + bellyHeight + 60 + drunkBulge; // Center is below screen
+        const bellyRadiusX = this.width * 0.55; // Wide
+        const bellyRadiusY = bellyHeight + 50 + drunkBulge + breathAmount; // Tall dome
 
-        // Belly skin
-        const skinGrad = this.ctx.createLinearGradient(0, bellyExposedY, 0, bellyExposedY + bellyCurveHeight);
-        skinGrad.addColorStop(0, ROOM_COLORS.SKIN_TONE_DARK);
-        skinGrad.addColorStop(0.5, ROOM_COLORS.SKIN_TONE);
-        skinGrad.addColorStop(1, ROOM_COLORS.SKIN_TONE_DARK);
-        this.ctx.fillStyle = skinGrad;
+        // Where shirt ends and belly begins
+        const bellyTopY = shirtY + shirtHeight - 10;
 
-        // Draw belly curve
+        // Left side shadow (3D depth - belly curves away)
+        const leftShadowGrad = this.ctx.createLinearGradient(0, 0, this.width * 0.3, 0);
+        leftShadowGrad.addColorStop(0, '#8a6050');
+        leftShadowGrad.addColorStop(0.5, '#c89888');
+        leftShadowGrad.addColorStop(1, ROOM_COLORS.SKIN_TONE);
+
+        // Right side shadow
+        const rightShadowGrad = this.ctx.createLinearGradient(this.width * 0.7, 0, this.width, 0);
+        rightShadowGrad.addColorStop(0, ROOM_COLORS.SKIN_TONE);
+        rightShadowGrad.addColorStop(0.5, '#c89888');
+        rightShadowGrad.addColorStop(1, '#8a6050');
+
+        // Main belly - elliptical dome with radial gradient for 3D sphere effect
+        const bellyGrad = this.ctx.createRadialGradient(
+            bellyCenterX, bellyCenterY - bellyRadiusY * 0.3, 10,  // Highlight near top-center
+            bellyCenterX, bellyCenterY, bellyRadiusY * 1.2
+        );
+        bellyGrad.addColorStop(0, '#ffd8c8');      // Bright highlight (light hitting dome)
+        bellyGrad.addColorStop(0.2, '#f0c0b0');   // Light skin
+        bellyGrad.addColorStop(0.5, ROOM_COLORS.SKIN_TONE);  // Normal skin
+        bellyGrad.addColorStop(0.8, '#c08878');   // Darker at edges
+        bellyGrad.addColorStop(1, '#906858');     // Dark at far edges
+
+        // Draw the belly dome as an ellipse arc
+        this.ctx.fillStyle = bellyGrad;
         this.ctx.beginPath();
-        this.ctx.moveTo(0, bellyExposedY);
-        // Curved belly shape
-        this.ctx.bezierCurveTo(
-            this.width * 0.25, bellyExposedY + 5,
-            this.width * 0.35, bellyExposedY + bellyCurveHeight * 0.8 + drunkBulge,
-            this.width * 0.5, bellyExposedY + bellyCurveHeight + drunkBulge
-        );
-        this.ctx.bezierCurveTo(
-            this.width * 0.65, bellyExposedY + bellyCurveHeight * 0.8 + drunkBulge,
-            this.width * 0.75, bellyExposedY + 5,
-            this.width, bellyExposedY
-        );
+        this.ctx.ellipse(bellyCenterX, bellyCenterY, bellyRadiusX, bellyRadiusY, 0, Math.PI, 0);
         this.ctx.lineTo(this.width, this.height);
         this.ctx.lineTo(0, this.height);
         this.ctx.closePath();
         this.ctx.fill();
 
-        // Belly button
-        const bellyButtonX = this.width / 2;
-        const bellyButtonY = bellyExposedY + bellyCurveHeight * 0.6 + drunkBulge / 2;
-
-        this.ctx.fillStyle = ROOM_COLORS.SKIN_TONE_DARK;
+        // Add side shadows for more 3D roundness
+        // Left shadow
+        this.ctx.fillStyle = leftShadowGrad;
+        this.ctx.globalAlpha = 0.4;
         this.ctx.beginPath();
-        this.ctx.ellipse(bellyButtonX, bellyButtonY, 6, 10, 0, 0, Math.PI * 2);
+        this.ctx.ellipse(bellyCenterX, bellyCenterY, bellyRadiusX, bellyRadiusY, 0, Math.PI, Math.PI * 0.65);
+        this.ctx.lineTo(0, this.height);
+        this.ctx.lineTo(0, bellyTopY);
+        this.ctx.closePath();
         this.ctx.fill();
 
-        // Belly button shadow/depth
-        this.ctx.fillStyle = 'rgba(0, 0, 0, 0.2)';
+        // Right shadow
+        this.ctx.fillStyle = rightShadowGrad;
         this.ctx.beginPath();
-        this.ctx.ellipse(bellyButtonX, bellyButtonY + 2, 4, 6, 0, 0, Math.PI * 2);
+        this.ctx.ellipse(bellyCenterX, bellyCenterY, bellyRadiusX, bellyRadiusY, 0, Math.PI * 0.35, 0);
+        this.ctx.lineTo(this.width, this.height);
+        this.ctx.lineTo(this.width, bellyTopY);
+        this.ctx.closePath();
+        this.ctx.fill();
+        this.ctx.globalAlpha = 1;
+
+        // Highlight arc on top of belly dome (light reflection)
+        this.ctx.strokeStyle = 'rgba(255, 240, 230, 0.5)';
+        this.ctx.lineWidth = 6;
+        this.ctx.lineCap = 'round';
+        this.ctx.beginPath();
+        this.ctx.ellipse(bellyCenterX, bellyCenterY, bellyRadiusX * 0.6, bellyRadiusY * 0.5, 0,
+            Math.PI * 0.7, Math.PI * 0.85);
+        this.ctx.stroke();
+
+        // Secondary highlight
+        this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.25)';
+        this.ctx.lineWidth = 3;
+        this.ctx.beginPath();
+        this.ctx.ellipse(bellyCenterX - 30, bellyCenterY, bellyRadiusX * 0.4, bellyRadiusY * 0.35, -0.2,
+            Math.PI * 0.75, Math.PI * 0.9);
+        this.ctx.stroke();
+
+        // Shadow under shirt (shirt resting on belly)
+        const shirtShadowGrad = this.ctx.createLinearGradient(0, bellyTopY, 0, bellyTopY + 25);
+        shirtShadowGrad.addColorStop(0, 'rgba(0, 0, 0, 0.5)');
+        shirtShadowGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+        this.ctx.fillStyle = shirtShadowGrad;
+        this.ctx.beginPath();
+        // Shadow follows the curve of the belly
+        this.ctx.ellipse(bellyCenterX, bellyCenterY, bellyRadiusX * 0.95, bellyRadiusY * 0.95, 0,
+            Math.PI * 0.85, Math.PI * 0.15, true);
+        this.ctx.lineTo(this.width, bellyTopY + 25);
+        this.ctx.lineTo(0, bellyTopY + 25);
+        this.ctx.closePath();
         this.ctx.fill();
 
-        // Subtle belly hair
-        this.ctx.strokeStyle = 'rgba(100, 80, 60, 0.2)';
+        // === BELLY BUTTON ===
+        const bellyButtonX = bellyCenterX;
+        // Position on the dome surface
+        const bellyButtonY = bellyCenterY - bellyRadiusY * 0.55;
+
+        // Belly button is a depression in the dome - darker oval
+        // Outer rim (slightly raised skin around navel)
+        this.ctx.fillStyle = '#d0a090';
+        this.ctx.beginPath();
+        this.ctx.ellipse(bellyButtonX, bellyButtonY, 14, 18, 0, 0, Math.PI * 2);
+        this.ctx.fill();
+
+        // Main depression
+        this.ctx.fillStyle = '#a07060';
+        this.ctx.beginPath();
+        this.ctx.ellipse(bellyButtonX, bellyButtonY + 2, 10, 14, 0, 0, Math.PI * 2);
+        this.ctx.fill();
+
+        // Deep shadow inside
+        this.ctx.fillStyle = '#604030';
+        this.ctx.beginPath();
+        this.ctx.ellipse(bellyButtonX, bellyButtonY + 4, 6, 9, 0, 0, Math.PI * 2);
+        this.ctx.fill();
+
+        // Deepest part
+        this.ctx.fillStyle = '#3a2015';
+        this.ctx.beginPath();
+        this.ctx.ellipse(bellyButtonX + 1, bellyButtonY + 5, 3, 5, 0.2, 0, Math.PI * 2);
+        this.ctx.fill();
+
+        // === BELLY HAIR ===
+        // Hair trail going down from belly button
+        this.ctx.strokeStyle = 'rgba(70, 50, 35, 0.4)';
         this.ctx.lineWidth = 1;
-        for (let i = 0; i < 15; i++) {
-            const hx = bellyButtonX - 40 + (i % 5) * 20 + Math.sin(i) * 10;
-            const hy = bellyButtonY - 30 + Math.floor(i / 5) * 15;
+        for (let i = 0; i < 30; i++) {
+            const row = Math.floor(i / 6);
+            const col = i % 6;
+            const hx = bellyButtonX - 35 + col * 14 + Math.sin(i * 0.7) * 8;
+            const hy = bellyButtonY + 25 + row * 12;
+            const curl = Math.sin(i * 1.3) * 3;
             this.ctx.beginPath();
             this.ctx.moveTo(hx, hy);
-            this.ctx.lineTo(hx + (Math.random() - 0.5) * 6, hy + 8);
+            this.ctx.quadraticCurveTo(hx + curl, hy + 6, hx + curl * 0.5, hy + 10);
             this.ctx.stroke();
         }
 
-        // Shirt hem line (where shirt meets belly)
-        this.ctx.strokeStyle = 'rgba(0, 0, 0, 0.3)';
-        this.ctx.lineWidth = 2;
+        // Shirt hem - curved to follow belly dome
+        this.ctx.strokeStyle = 'rgba(0, 0, 0, 0.6)';
+        this.ctx.lineWidth = 3;
         this.ctx.beginPath();
-        this.ctx.moveTo(0, bellyExposedY - 3);
-        this.ctx.bezierCurveTo(
-            this.width * 0.3, bellyExposedY + 8 + breathAmount,
-            this.width * 0.7, bellyExposedY + 8 + breathAmount,
-            this.width, bellyExposedY - 3
-        );
+        // Hem follows elliptical curve of belly
+        this.ctx.ellipse(bellyCenterX, bellyCenterY, bellyRadiusX * 0.98, bellyRadiusY * 0.98, 0,
+            Math.PI * 0.88, Math.PI * 0.12, true);
+        this.ctx.stroke();
+
+        // Shirt hem highlight (fabric edge catching light)
+        this.ctx.strokeStyle = 'rgba(80, 80, 80, 0.5)';
+        this.ctx.lineWidth = 1;
+        this.ctx.beginPath();
+        this.ctx.ellipse(bellyCenterX, bellyCenterY, bellyRadiusX * 0.97, bellyRadiusY * 0.97, 0,
+            Math.PI * 0.87, Math.PI * 0.13, true);
         this.ctx.stroke();
     }
 
