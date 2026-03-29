@@ -72,7 +72,6 @@ export class AudioSystem {
             this.sfxGain.connect(this.masterGain);
 
             this.initialized = true;
-            console.log('Audio system initialized');
         } catch (e) {
             console.warn('Audio not available:', e);
         }

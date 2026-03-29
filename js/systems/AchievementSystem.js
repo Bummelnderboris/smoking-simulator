@@ -143,7 +143,6 @@ export class AchievementSystem {
             this.unlocked.add(achievement.id);
             this.pendingNotifications.push(achievement);
             this.save();
-            console.log(`Achievement unlocked: ${achievement.name}`);
             return true;
         }
         return false;

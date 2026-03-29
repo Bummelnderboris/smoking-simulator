@@ -63,9 +63,6 @@ export class Game {
 
     async init() {
         await this.audio.init();
-        console.log('Game initialized');
-        console.log(`High score: ${this.highScore}`);
-        console.log(`Achievements: ${this.achievements.getUnlockedCount()}/${this.achievements.getTotalCount()}`);
     }
 
     loadHighScore() {
@@ -217,11 +214,10 @@ export class Game {
             }
         }
 
-        // Drunk effect: Random control inversion at 80%+ (Hartz IV mode only)
+        // Drunk effect: Random control inversion at 80%+ drunkenness
         // Only trigger if not already inverted to prevent stacking
         const now = performance.now();
-        if (!this.difficulty.isGamingMode() &&
-            this.player.drunkenness >= 80 &&
+        if (this.player.drunkenness >= 80 &&
             now - this.lastInversionCheck > this.inversionCooldown &&
             !this.renderer.isControlsInverted()) {
             this.lastInversionCheck = now;
@@ -240,10 +236,10 @@ export class Game {
         }
 
         // Handle smoking (blocked during hiccup in Hartz IV mode only)
-        // Control inversion only in Hartz IV mode
+        // Control inversion swaps smoke (SPACE) and drink (B) keys
         const isGaming = this.difficulty.isGamingMode();
-        const smokeKey = (!isGaming && this.renderer.isControlsInverted()) ? KEYS.DRINK : KEYS.SMOKE;
-        const drinkKey = (!isGaming && this.renderer.isControlsInverted()) ? KEYS.SMOKE : KEYS.DRINK;
+        const smokeKey = this.renderer.isControlsInverted() ? KEYS.DRINK : KEYS.SMOKE;
+        const drinkKey = this.renderer.isControlsInverted() ? KEYS.SMOKE : KEYS.DRINK;
 
         // In Gaming mode, hiccups don't block actions
         const canAct = isGaming || !this.player.isHiccuping;
@@ -403,9 +399,13 @@ export class Game {
             this.enteredName = this.leaderboard.getPlayerName();
             this.nameCursorBlink = 0;
         } else {
-            // Go directly to game over
+            // Record game even if not on leaderboard (keeps state persisted)
+            this.playerRank = this.leaderboard.recordGame(
+                this.player.score,
+                this.player.timeAlive,
+                this.player.totalCigarettesSmoked
+            );
             this.state = GAME_STATES.GAME_OVER;
-            this.playerRank = null;
             this.showLeaderboard = false;
         }
     }
@@ -573,10 +573,8 @@ export class Game {
         // Draw time of day indicator
         this.renderer.drawTimeIndicator(this.dayNight.getPhaseDisplayName());
 
-        // Draw inverted controls warning if active (Hartz IV only)
-        if (!this.difficulty.isGamingMode()) {
-            this.renderer.drawInvertedWarning();
-        }
+        // Draw inverted controls warning if active
+        this.renderer.drawInvertedWarning();
 
         // Draw achievement notification if any
         this.renderer.drawAchievementNotification();

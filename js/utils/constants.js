@@ -36,10 +36,6 @@ export const GAME_CONFIG = {
     DRUNK_LEVEL_2: 50,  // Input delay
     DRUNK_LEVEL_3: 75,  // Chaos mode
 
-    // Input
-    INPUT_DELAY_BASE: 0,         // Ms
-    INPUT_DELAY_DRUNK_MULT: 3,   // Ms per drunk %
-
     // Scoring
     POINTS_PER_SECOND: 10,
     POINTS_PER_CIGARETTE: 100,
@@ -91,7 +87,6 @@ export const GAME_STATES = {
     MODE_SELECT: 'mode_select',
     PLAYING: 'playing',
     STUFFING: 'stuffing',
-    PAUSED: 'paused',
     GAME_OVER: 'game_over',
     NAME_ENTRY: 'name_entry'
 };

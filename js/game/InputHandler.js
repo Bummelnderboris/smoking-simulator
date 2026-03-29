@@ -4,7 +4,6 @@ export class InputHandler {
     constructor() {
         this.keys = new Map();
         this.justPressed = new Map();
-        this.pendingInputs = [];
         this.drunkLevel = 0;
         this.typedCharacter = null;
 
@@ -93,10 +92,5 @@ export class InputHandler {
             }
         }
         return null;
-    }
-
-    update(deltaTime) {
-        // Process pending inputs with delay (drunk effect)
-        // For now, keeping it simple - delay is handled by player cooldowns
     }
 }

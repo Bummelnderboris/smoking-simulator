@@ -186,9 +186,4 @@ export class Player {
         if (this.drunkenness >= GAME_CONFIG.DRUNK_LEVEL_1) return 1;
         return 0;
     }
-
-    getInputDelay() {
-        return GAME_CONFIG.INPUT_DELAY_BASE +
-               this.drunkenness * GAME_CONFIG.INPUT_DELAY_DRUNK_MULT;
-    }
 }

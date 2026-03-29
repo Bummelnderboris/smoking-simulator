@@ -1662,25 +1662,6 @@ export class RenderSystem {
         this.ctx.fillRect(0, 0, this.width, this.height);
     }
 
-    // Draw drunk blur effect
-    drawDrunkBlur(drunkLevel) {
-        if (drunkLevel < 50) return;
-
-        const intensity = (drunkLevel - 50) / 50 * 0.3;
-        this.ctx.globalAlpha = intensity;
-
-        // Simple blur effect by drawing offset copies
-        const offsets = [
-            { x: -2, y: 0 },
-            { x: 2, y: 0 },
-            { x: 0, y: -2 },
-            { x: 0, y: 2 }
-        ];
-
-        // This is a simplified effect - real blur would need off-screen canvas
-        this.ctx.globalAlpha = 1;
-    }
-
     // Adjust color brightness
     adjustBrightness(hex, factor) {
         // Handle rgb format

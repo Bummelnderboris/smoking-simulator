@@ -105,20 +105,6 @@ export class DifficultySystem {
         return this.getLevelConfig().tempo;
     }
 
-    getStuffingTimeMultiplier() {
-        if (this.gameMode !== GAME_MODES.GAMING) {
-            return 1.0;
-        }
-        return this.getLevelConfig().stuffingTime;
-    }
-
-    getStuffingKeyCount() {
-        if (this.gameMode !== GAME_MODES.GAMING) {
-            return null; // Use drunk-based calculation in Hartz IV
-        }
-        return this.getLevelConfig().stuffingKeys;
-    }
-
     getScoreMultiplier() {
         if (this.gameMode !== GAME_MODES.GAMING) {
             return 1.0;
@@ -147,13 +133,5 @@ export class DifficultySystem {
         }
         // Cap at 1.0 for visual effects, but let difficulty keep scaling
         return Math.min(1.0, (this.currentLevel - 1) / 4);
-    }
-
-    // Get raw intensity (uncapped) for things that should keep scaling
-    getRawIntensity() {
-        if (this.gameMode !== GAME_MODES.GAMING) {
-            return 0;
-        }
-        return (this.currentLevel - 1) / 4;
     }
 }

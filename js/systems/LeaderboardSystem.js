@@ -133,7 +133,17 @@ export class LeaderboardSystem {
         return available[Math.floor(Math.random() * available.length)];
     }
 
-    // Submit a new score
+    // Record a game result (always called, even if score doesn't make leaderboard)
+    recordGame(score, time, cigarettes) {
+        // Maybe add fake competitors based on player's score (keeps leaderboard dynamic)
+        if (Math.random() < 0.25) {
+            this.addFakeCompetitor(score);
+        }
+        this.save();
+        return this.getRank(score);
+    }
+
+    // Submit a new score to the leaderboard (only called when score qualifies)
     submitScore(score, time, cigarettes) {
         // Remove old player entries (keep only best)
         const playerBest = this.entries.find(e => e.isPlayer);

@@ -4,29 +4,8 @@ export function clamp(value, min, max) {
     return Math.min(Math.max(value, min), max);
 }
 
-export function lerp(start, end, t) {
-    return start + (end - start) * t;
-}
-
-export function randomRange(min, max) {
-    return Math.random() * (max - min) + min;
-}
-
-export function randomInt(min, max) {
-    return Math.floor(randomRange(min, max + 1));
-}
-
 export function randomChoice(array) {
-    return array[randomInt(0, array.length - 1)];
-}
-
-export function shuffleArray(array) {
-    const result = [...array];
-    for (let i = result.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [result[i], result[j]] = [result[j], result[i]];
-    }
-    return result;
+    return array[Math.floor(Math.random() * array.length)];
 }
 
 // Drunk text effect - occasionally swap letters
@@ -67,15 +46,3 @@ export function formatTime(seconds) {
 export function formatScore(score) {
     return Math.floor(score).toLocaleString();
 }
-
-// Easing functions
-export const ease = {
-    inOut: t => t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2,
-    out: t => 1 - Math.pow(1 - t, 3),
-    in: t => t * t * t,
-    elastic: t => {
-        const c4 = (2 * Math.PI) / 3;
-        return t === 0 ? 0 : t === 1 ? 1 :
-            Math.pow(2, -10 * t) * Math.sin((t * 10 - 0.75) * c4) + 1;
-    }
-};

@@ -3,9 +3,6 @@ import { GAME_CONFIG } from './utils/constants.js';
 
 // Wait for DOM to load
 document.addEventListener('DOMContentLoaded', async () => {
-    console.log('Smoking Simulator - Tile Table Edition (1987)');
-    console.log('Initializing...');
-
     // Get canvas
     const canvas = document.getElementById('gameCanvas');
     if (!canvas) {
@@ -24,8 +21,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Start game loop
     game.start();
 
-    console.log('Game started!');
-
     // Handle window resize
     window.addEventListener('resize', () => {
         // Keep canvas centered - handled by CSS
@@ -36,9 +31,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         e.preventDefault();
     });
 
-    // Debug info
+    // Debug mode - access game via window.game with #debug hash
     if (window.location.hash === '#debug') {
         window.game = game;
-        console.log('Debug mode enabled. Access game via window.game');
     }
 });
