@@ -65,18 +65,26 @@ export class Game {
         await this.audio.init();
     }
 
-    loadHighScore() {
+    loadHighScore(mode = null) {
         try {
-            const saved = localStorage.getItem('smokingSimHighScore');
+            const gameMode = mode || this.gameMode;
+            const key = gameMode === GAME_MODES.GAMING
+                ? 'smokingSimHighScore_gaming'
+                : 'smokingSimHighScore_hartziv';
+            const saved = localStorage.getItem(key);
             return saved ? parseInt(saved, 10) : 0;
         } catch (e) {
             return 0;
         }
     }
 
-    saveHighScore(score) {
+    saveHighScore(score, mode = null) {
         try {
-            localStorage.setItem('smokingSimHighScore', Math.floor(score).toString());
+            const gameMode = mode || this.gameMode;
+            const key = gameMode === GAME_MODES.GAMING
+                ? 'smokingSimHighScore_gaming'
+                : 'smokingSimHighScore_hartziv';
+            localStorage.setItem(key, Math.floor(score).toString());
             this.highScore = Math.floor(score);
         } catch (e) {
             console.warn('Could not save high score');
@@ -159,6 +167,9 @@ export class Game {
         this.difficulty.reset(this.gameMode);
         this.state = GAME_STATES.PLAYING;
         this.deathCause = '';
+
+        // Load high score for current mode
+        this.highScore = this.loadHighScore(this.gameMode);
 
         // Reset all UI state flags
         this.showLeaderboard = false;
@@ -431,12 +442,14 @@ export class Game {
         // Handle enter to confirm
         if (this.input.isJustPressed('enter') || this.input.isJustPressed(KEYS.START)) {
             if (this.enteredName.length > 0) {
-                // Save name and submit score
+                // Save name and submit score with game mode
                 this.leaderboard.setPlayerName(this.enteredName);
                 this.playerRank = this.leaderboard.submitScore(
                     this.player.score,
                     this.player.timeAlive,
-                    this.player.totalCigarettesSmoked
+                    this.player.totalCigarettesSmoked,
+                    this.gameMode,
+                    this.difficulty.currentLevel
                 );
                 this.state = GAME_STATES.GAME_OVER;
                 this.showLeaderboard = true;
@@ -508,14 +521,24 @@ export class Game {
 
             case GAME_STATES.GAME_OVER:
                 this.renderGame();
+                // Set current player name for highlighting in leaderboard
+                this.renderer.setCurrentPlayerName(this.leaderboard.getPlayerName());
                 if (this.showLeaderboard) {
-                    // Draw leaderboard as full screen overlay (not on top of game over)
+                    // Draw leaderboard as full screen overlay
                     this.renderer.drawLeaderboardFullScreen(
                         this.leaderboard.getTopEntries(),
-                        this.playerRank
+                        this.playerRank,
+                        this.gameMode
                     );
                 } else {
-                    this.renderer.drawGameOver(this.player, this.deathCause, this.highScore, this.isNewHighScore);
+                    this.renderer.drawGameOver(
+                        this.player,
+                        this.deathCause,
+                        this.highScore,
+                        this.isNewHighScore,
+                        this.gameMode,
+                        this.difficulty.currentLevel
+                    );
                 }
                 break;
         }

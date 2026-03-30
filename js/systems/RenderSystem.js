@@ -1,4 +1,4 @@
-import { GAME_CONFIG } from '../utils/constants.js';
+import { GAME_CONFIG, GAME_MODES } from '../utils/constants.js';
 import { getWobbleOffset, formatTime, formatScore, drunkifyText, clamp } from '../utils/helpers.js';
 import { TIME_COLORS } from './DayNightSystem.js';
 
@@ -1862,7 +1862,7 @@ export class RenderSystem {
     }
 
     // Draw game over screen
-    drawGameOver(player, deathCause, highScore = 0, isNewHighScore = false) {
+    drawGameOver(player, deathCause, highScore = 0, isNewHighScore = false, gameMode = null, level = 1) {
         // Darken
         this.ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
         this.ctx.fillRect(0, 0, this.width, this.height);
@@ -1871,12 +1871,30 @@ export class RenderSystem {
         this.ctx.fillStyle = '#ff4444';
         this.ctx.font = 'bold 48px monospace';
         this.ctx.textAlign = 'center';
-        this.ctx.fillText('GAME OVER', this.width / 2, 120);
+        this.ctx.fillText('GAME OVER', this.width / 2, 100);
+
+        // Mode badge
+        if (gameMode) {
+            const isGaming = gameMode === GAME_MODES.GAMING;
+            const badgeText = isGaming ? `GAMING MODE - LEVEL ${level}` : 'HARTZ IV MODE';
+            const badgeColor = isGaming ? '#4466aa' : '#665533';
+            const textColor = isGaming ? '#aaccff' : '#ddcc99';
+
+            // Badge background
+            this.ctx.fillStyle = badgeColor;
+            const badgeWidth = isGaming ? 220 : 160;
+            this.ctx.fillRect(this.width / 2 - badgeWidth / 2, 115, badgeWidth, 24);
+
+            // Badge text
+            this.ctx.fillStyle = textColor;
+            this.ctx.font = 'bold 14px monospace';
+            this.ctx.fillText(badgeText, this.width / 2, 132);
+        }
 
         // New high score celebration
         if (isNewHighScore) {
             this.ctx.fillStyle = '#ffcc00';
-            this.ctx.font = 'bold 28px monospace';
+            this.ctx.font = 'bold 24px monospace';
             const pulse = Math.sin(this.time / 200) * 0.3 + 0.7;
             this.ctx.globalAlpha = pulse;
             this.ctx.fillText('NEW HIGH SCORE!', this.width / 2, 165);
@@ -1885,39 +1903,39 @@ export class RenderSystem {
 
         // Death cause
         this.ctx.fillStyle = '#aaa';
-        this.ctx.font = '16px monospace';
-        this.ctx.fillText(deathCause, this.width / 2, 200);
+        this.ctx.font = '14px monospace';
+        this.ctx.fillText(deathCause, this.width / 2, 195);
 
         // Stats
         this.ctx.fillStyle = GAME_CONFIG.COLORS.TEXT;
         this.ctx.font = '24px monospace';
-        this.ctx.fillText(`Final Score: ${formatScore(player.score)}`, this.width / 2, 260);
+        this.ctx.fillText(`Final Score: ${formatScore(player.score)}`, this.width / 2, 240);
 
         if (!isNewHighScore && highScore > 0) {
-            this.ctx.font = '16px monospace';
+            this.ctx.font = '14px monospace';
             this.ctx.fillStyle = '#888';
-            this.ctx.fillText(`High Score: ${formatScore(highScore)}`, this.width / 2, 290);
+            this.ctx.fillText(`High Score: ${formatScore(highScore)}`, this.width / 2, 268);
         }
 
         this.ctx.fillStyle = GAME_CONFIG.COLORS.TEXT;
-        this.ctx.font = '20px monospace';
-        this.ctx.fillText(`Time Survived: ${formatTime(player.timeAlive)}`, this.width / 2, 330);
-        this.ctx.font = '16px monospace';
-        this.ctx.fillText(`Cigarettes Smoked: ${player.totalCigarettesSmoked}`, this.width / 2, 370);
-        this.ctx.fillText(`Beers Consumed: ${player.totalBeersConsumed.toFixed(1)}`, this.width / 2, 400);
+        this.ctx.font = '18px monospace';
+        this.ctx.fillText(`Time Survived: ${formatTime(player.timeAlive)}`, this.width / 2, 310);
+        this.ctx.font = '14px monospace';
+        this.ctx.fillText(`Cigarettes Smoked: ${player.totalCigarettesSmoked}`, this.width / 2, 345);
+        this.ctx.fillText(`Beers Consumed: ${player.totalBeersConsumed.toFixed(1)}`, this.width / 2, 375);
 
         // Restart prompt
-        this.ctx.font = 'bold 20px monospace';
+        this.ctx.font = 'bold 18px monospace';
         this.ctx.fillStyle = '#fff';
         const blink = Math.sin(this.time / 300) > 0;
         if (blink) {
-            this.ctx.fillText('Press ENTER to Try Again', this.width / 2, 460);
+            this.ctx.fillText('Press ENTER to Try Again', this.width / 2, 440);
         }
 
         // Navigation hint
         this.ctx.fillStyle = '#666';
-        this.ctx.font = '14px monospace';
-        this.ctx.fillText('[L] View Leaderboard', this.width / 2, 500);
+        this.ctx.font = '12px monospace';
+        this.ctx.fillText('[L] View Leaderboard  |  [ESC] Main Menu', this.width / 2, 480);
     }
 
     // Draw CRT scanline effect
@@ -2083,38 +2101,44 @@ export class RenderSystem {
     }
 
     // Draw full screen leaderboard (for game over state)
-    drawLeaderboardFullScreen(entries, playerRank = null) {
+    drawLeaderboardFullScreen(entries, playerRank = null, currentMode = null) {
         // Dark overlay
         this.ctx.fillStyle = 'rgba(0, 0, 0, 0.85)';
         this.ctx.fillRect(0, 0, this.width, this.height);
 
         const startX = this.width / 2;
-        const startY = 100;
-        const lineHeight = 35;
-        const width = 500;
+        const startY = 80;
+        const lineHeight = 32;
+        const width = 580;
 
         // Title
         this.ctx.fillStyle = '#ffcc00';
-        this.ctx.font = 'bold 36px monospace';
+        this.ctx.font = 'bold 32px monospace';
         this.ctx.textAlign = 'center';
-        this.ctx.fillText('LEADERBOARD', startX, startY);
+        this.ctx.fillText('GLOBAL LEADERBOARD', startX, startY);
+
+        // Live indicator
+        this.ctx.fillStyle = '#00ff00';
+        this.ctx.font = '10px monospace';
+        this.ctx.fillText('● LIVE', startX + 140, startY - 15);
 
         // Subtitle with player rank
         if (playerRank && playerRank <= 10) {
             this.ctx.fillStyle = '#88ff88';
-            this.ctx.font = '16px monospace';
-            this.ctx.fillText(`You placed #${playerRank}!`, startX, startY + 30);
+            this.ctx.font = '14px monospace';
+            this.ctx.fillText(`You placed #${playerRank}!`, startX, startY + 22);
         }
 
         // Header row
-        const headerY = startY + 60;
+        const headerY = startY + 50;
         this.ctx.fillStyle = '#888';
-        this.ctx.font = 'bold 12px monospace';
+        this.ctx.font = 'bold 11px monospace';
         this.ctx.textAlign = 'left';
         this.ctx.fillText('RANK', startX - width / 2 + 10, headerY);
-        this.ctx.fillText('NAME', startX - width / 2 + 70, headerY);
+        this.ctx.fillText('NAME', startX - width / 2 + 60, headerY);
+        this.ctx.fillText('MODE', startX - width / 2 + 200, headerY);
         this.ctx.textAlign = 'right';
-        this.ctx.fillText('SCORE', startX + width / 2 - 100, headerY);
+        this.ctx.fillText('SCORE', startX + width / 2 - 80, headerY);
         this.ctx.fillText('TIME', startX + width / 2 - 10, headerY);
 
         // Divider
@@ -2127,53 +2151,91 @@ export class RenderSystem {
 
         // Entries
         entries.forEach((entry, i) => {
-            const y = startY + 95 + i * lineHeight;
+            const y = startY + 80 + i * lineHeight;
             const rank = i + 1;
 
-            // Highlight player entry
-            if (entry.isPlayer) {
+            // Highlight current player's name
+            const isCurrentPlayer = entry.name === this.currentPlayerName;
+            if (isCurrentPlayer) {
                 this.ctx.fillStyle = 'rgba(100, 150, 255, 0.2)';
-                this.ctx.fillRect(startX - width / 2, y - 22, width, lineHeight - 2);
+                this.ctx.fillRect(startX - width / 2, y - 18, width, lineHeight - 2);
             }
 
             // Medal for top 3
-            this.ctx.font = '18px serif';
+            this.ctx.font = '16px serif';
             this.ctx.textAlign = 'center';
             if (rank === 1) {
-                this.ctx.fillText('🥇', startX - width / 2 + 30, y);
+                this.ctx.fillText('🥇', startX - width / 2 + 25, y);
             } else if (rank === 2) {
-                this.ctx.fillText('🥈', startX - width / 2 + 30, y);
+                this.ctx.fillText('🥈', startX - width / 2 + 25, y);
             } else if (rank === 3) {
-                this.ctx.fillText('🥉', startX - width / 2 + 30, y);
+                this.ctx.fillText('🥉', startX - width / 2 + 25, y);
             } else {
                 this.ctx.fillStyle = '#666';
-                this.ctx.font = 'bold 16px monospace';
-                this.ctx.fillText(`${rank}`, startX - width / 2 + 30, y);
+                this.ctx.font = 'bold 14px monospace';
+                this.ctx.fillText(`${rank}`, startX - width / 2 + 25, y);
             }
 
             // Name
-            this.ctx.fillStyle = entry.isPlayer ? '#88ccff' : '#fff';
-            this.ctx.font = entry.isPlayer ? 'bold 16px monospace' : '16px monospace';
+            this.ctx.fillStyle = isCurrentPlayer ? '#88ccff' : '#fff';
+            this.ctx.font = isCurrentPlayer ? 'bold 14px monospace' : '14px monospace';
             this.ctx.textAlign = 'left';
-            this.ctx.fillText(entry.name, startX - width / 2 + 70, y);
+            this.ctx.fillText(entry.name, startX - width / 2 + 60, y);
+
+            // Mode badge
+            const mode = entry.mode || GAME_MODES.HARTZ_IV;
+            if (mode === GAME_MODES.GAMING) {
+                // Gaming mode - blue badge
+                this.ctx.fillStyle = '#4466aa';
+                this.ctx.fillRect(startX - width / 2 + 195, y - 12, 65, 16);
+                this.ctx.fillStyle = '#aaccff';
+                this.ctx.font = 'bold 10px monospace';
+                this.ctx.fillText('GAMING', startX - width / 2 + 200, y);
+                // Show level if available
+                if (entry.level && entry.level > 1) {
+                    this.ctx.fillStyle = '#ffcc00';
+                    this.ctx.fillText(` L${entry.level}`, startX - width / 2 + 245, y);
+                }
+            } else {
+                // Hartz IV mode - brown badge
+                this.ctx.fillStyle = '#665533';
+                this.ctx.fillRect(startX - width / 2 + 195, y - 12, 65, 16);
+                this.ctx.fillStyle = '#ddcc99';
+                this.ctx.font = 'bold 10px monospace';
+                this.ctx.fillText('HARTZ IV', startX - width / 2 + 200, y);
+            }
 
             // Score
-            this.ctx.fillStyle = entry.isPlayer ? '#88ccff' : '#aaa';
+            this.ctx.fillStyle = isCurrentPlayer ? '#88ccff' : '#aaa';
+            this.ctx.font = '14px monospace';
             this.ctx.textAlign = 'right';
-            this.ctx.fillText(formatScore(entry.score), startX + width / 2 - 100, y);
+            this.ctx.fillText(formatScore(entry.score), startX + width / 2 - 80, y);
 
             // Time (format as MM:SS)
             this.ctx.fillStyle = '#666';
-            const mins = Math.floor(entry.time / 60);
-            const secs = Math.floor(entry.time % 60);
+            const mins = Math.floor((entry.time || 0) / 60);
+            const secs = Math.floor((entry.time || 0) % 60);
             this.ctx.fillText(`${mins}:${secs.toString().padStart(2, '0')}`, startX + width / 2 - 10, y);
         });
 
+        // Show message if no entries
+        if (entries.length === 0) {
+            this.ctx.fillStyle = '#666';
+            this.ctx.font = '16px monospace';
+            this.ctx.textAlign = 'center';
+            this.ctx.fillText('No scores yet - be the first!', startX, startY + 150);
+        }
+
         // Navigation hint
         this.ctx.fillStyle = '#666';
-        this.ctx.font = '14px monospace';
+        this.ctx.font = '12px monospace';
         this.ctx.textAlign = 'center';
-        this.ctx.fillText('[L] Toggle View  |  [ENTER] Return to Menu', startX, this.height - 40);
+        this.ctx.fillText('[L] Toggle View  |  [ENTER] Return to Menu', startX, this.height - 30);
+    }
+
+    // Set current player name for highlighting
+    setCurrentPlayerName(name) {
+        this.currentPlayerName = name;
     }
 
     // Draw achievements gallery

@@ -1,13 +1,15 @@
 // Leaderboard System - Firebase-powered global leaderboard
 import { database, ref, push, get, query, orderByChild, limitToLast, onValue } from '../firebase-config.js';
+import { GAME_MODES } from '../utils/constants.js';
 
 export class LeaderboardSystem {
     constructor() {
         this.entries = [];
         this.playerName = 'PLAYER';
-        this.maxEntries = 10;
+        this.maxEntries = 20; // Store more entries to filter by mode
         this.isLoading = true;
         this.lastError = null;
+        this.currentFilter = null; // null = all, 'hartz_iv', 'gaming'
 
         // Local player name from localStorage
         this.loadPlayerName();
@@ -117,12 +119,14 @@ export class LeaderboardSystem {
     }
 
     // Submit a new score to Firebase (returns rank synchronously, pushes async)
-    submitScore(score, time, cigarettes) {
+    submitScore(score, time, cigarettes, gameMode, level = 1) {
         const newEntry = {
             name: this.playerName,
             score: Math.floor(score),
             time: Math.floor(time),
             cigarettes: cigarettes,
+            mode: gameMode || GAME_MODES.HARTZ_IV,
+            level: level,
             date: Date.now()
         };
 
@@ -135,7 +139,7 @@ export class LeaderboardSystem {
             this.entries = this.entries.slice(0, this.maxEntries);
         }
 
-        const rank = this.getRank(score);
+        const rank = this.getRank(score, gameMode);
 
         // Push to Firebase in background (realtime listener will sync)
         this.pushToFirebase(newEntry).catch(e => {
@@ -153,13 +157,31 @@ export class LeaderboardSystem {
     }
 
     // Record a game (called even if score doesn't make leaderboard)
-    recordGame(score, time, cigarettes) {
+    recordGame(score, time, cigarettes, gameMode) {
         // Just return rank, don't submit
-        return this.getRank(score);
+        return this.getRank(score, gameMode);
     }
 
-    getRank(score) {
-        const sorted = [...this.entries].sort((a, b) => b.score - a.score);
+    // Set filter for displaying entries
+    setFilter(mode) {
+        this.currentFilter = mode; // null = all, 'hartz_iv', 'gaming'
+    }
+
+    // Get filtered entries
+    getFilteredEntries() {
+        if (!this.currentFilter) {
+            return this.entries;
+        }
+        return this.entries.filter(e => e.mode === this.currentFilter);
+    }
+
+    getRank(score, gameMode = null) {
+        // If gameMode specified, rank within that mode only
+        let entries = gameMode
+            ? this.entries.filter(e => e.mode === gameMode)
+            : this.entries;
+
+        const sorted = [...entries].sort((a, b) => b.score - a.score);
         for (let i = 0; i < sorted.length; i++) {
             if (score >= sorted[i].score) {
                 return i + 1;
@@ -168,19 +190,35 @@ export class LeaderboardSystem {
         return sorted.length + 1;
     }
 
-    getTopEntries(count = 10) {
-        return this.entries.slice(0, count);
+    getTopEntries(count = 10, gameMode = null) {
+        let entries = gameMode
+            ? this.entries.filter(e => e.mode === gameMode)
+            : this.entries;
+        return entries.slice(0, count);
     }
 
-    getPlayerBest() {
-        // Find best score with player's name
-        return this.entries.find(e => e.name === this.playerName);
+    getPlayerBest(gameMode = null) {
+        // Find best score with player's name (optionally filtered by mode)
+        let entries = gameMode
+            ? this.entries.filter(e => e.mode === gameMode)
+            : this.entries;
+        return entries.find(e => e.name === this.playerName);
     }
 
-    isOnLeaderboard(score) {
-        if (this.entries.length < this.maxEntries) return true;
-        const lowestScore = this.entries[this.entries.length - 1]?.score || 0;
+    isOnLeaderboard(score, gameMode = null) {
+        const entries = gameMode
+            ? this.entries.filter(e => e.mode === gameMode)
+            : this.entries;
+        if (entries.length < 10) return true;
+        const lowestScore = entries[entries.length - 1]?.score || 0;
         return score > lowestScore;
+    }
+
+    // Get mode display name
+    getModeDisplayName(mode) {
+        if (mode === GAME_MODES.GAMING) return 'GAMING';
+        if (mode === GAME_MODES.HARTZ_IV) return 'HARTZ IV';
+        return 'CLASSIC';
     }
 
     // Format time for display
