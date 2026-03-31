@@ -1,4 +1,4 @@
-import { GAME_CONFIG, GAME_STATES, GAME_MODES, DEATH_CAUSES, KEYS } from '../utils/constants.js';
+import { GAME_CONFIG, GAME_STATES, GAME_MODES, DEATH_CAUSES, DEATH_ICONS, KEYS } from '../utils/constants.js';
 import { Player } from './Player.js';
 import { InputHandler } from './InputHandler.js';
 import { StuffingSystem } from '../systems/StuffingSystem.js';
@@ -14,6 +14,7 @@ export class Game {
         this.canvas = canvas;
         this.state = GAME_STATES.MENU;
         this.deathCause = '';
+        this.deathCauseType = '';
 
         // Systems
         this.player = new Player();
@@ -167,6 +168,7 @@ export class Game {
         this.difficulty.reset(this.gameMode);
         this.state = GAME_STATES.PLAYING;
         this.deathCause = '';
+        this.deathCauseType = '';
 
         // Load high score for current mode
         this.highScore = this.loadHighScore(this.gameMode);
@@ -387,7 +389,13 @@ export class Game {
     }
 
     gameOver(cause) {
-        this.deathCause = DEATH_CAUSES[cause] || 'You died somehow.';
+        this.deathCauseType = cause;
+        const messages = DEATH_CAUSES[cause];
+        if (messages && Array.isArray(messages)) {
+            this.deathCause = messages[Math.floor(Math.random() * messages.length)];
+        } else {
+            this.deathCause = 'You died somehow. Impressively.';
+        }
         this.audio.stopMusic();
         this.audio.playGameOverSound();
         this.renderer.addShake(15);
@@ -534,6 +542,7 @@ export class Game {
                     this.renderer.drawGameOver(
                         this.player,
                         this.deathCause,
+                        this.deathCauseType,
                         this.highScore,
                         this.isNewHighScore,
                         this.gameMode,

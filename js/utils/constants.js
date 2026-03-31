@@ -106,10 +106,43 @@ export const DIFFICULTY_LEVELS = [
     { level: 5, name: '5th', timeThreshold: 180, multiplier: 2.5, tempo: 1.6, stuffingTime: 0.6, stuffingKeys: 6 }
 ];
 
-// Death causes
+// Death causes - arrays for variety
 export const DEATH_CAUSES = {
-    OXYGEN: 'You overdosed on oxygen! Should have smoked more...',
-    DROWSINESS: 'You fell asleep at the table. Lightweight.',
-    NO_CIGARETTES: 'No cigarettes left! You panicked and inhaled pure air.',
-    FIRE: 'You set the table on fire. Classic.'
+    OXYGEN: [
+        'You overdosed on oxygen! Should have smoked more...',
+        'Too much fresh air! Your lungs rejected it.',
+        'Oxygen poisoning. Ironic, isn\'t it?',
+        'Your body forgot how to process clean air.',
+        'Fatal error: lungs.exe expected tar, got O2',
+        'You breathed normally. Rookie mistake.',
+        'The air was too pure. You couldn\'t handle it.',
+        'Withdrawal symptoms from... breathing?'
+    ],
+    DROWSINESS: [
+        'You fell asleep at the table. Lightweight.',
+        'Zzzzz... *thud* ...game over.',
+        'You dreamed of cigarettes. Forever.',
+        'Passed out. The ashtray broke your fall.',
+        'You took a power nap. Permanently.',
+        'Fell asleep mid-puff. Embarrassing.',
+        'Your face met the table. The table won.',
+        'Narcolepsy claims another victim.'
+    ],
+    NO_CIGARETTES: [
+        'No cigarettes left! You panicked and inhaled pure air.',
+        'Out of smokes. Out of hope. Out of life.',
+        'You reached for a cigarette. Found only despair.',
+        'The pack is empty. So is your will to live.',
+        'Nicotine withdrawal hit different this time.',
+        'You tried to smoke your finger. It didn\'t work.',
+        'No more cigarettes? No more you.',
+        'The void in the pack mirrored your soul.'
+    ]
+};
+
+// Death cause icons (ASCII-style)
+export const DEATH_ICONS = {
+    OXYGEN: '( O _ O )',
+    DROWSINESS: '( -_- ) zzZ',
+    NO_CIGARETTES: '( ;_; )'
 };

@@ -1,4 +1,4 @@
-import { GAME_CONFIG, GAME_MODES } from '../utils/constants.js';
+import { GAME_CONFIG, GAME_MODES, DEATH_ICONS } from '../utils/constants.js';
 import { getWobbleOffset, formatTime, formatScore, drunkifyText, clamp } from '../utils/helpers.js';
 import { TIME_COLORS } from './DayNightSystem.js';
 
@@ -1862,16 +1862,41 @@ export class RenderSystem {
     }
 
     // Draw game over screen
-    drawGameOver(player, deathCause, highScore = 0, isNewHighScore = false, gameMode = null, level = 1) {
-        // Darken
-        this.ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
+    drawGameOver(player, deathCause, deathCauseType, highScore = 0, isNewHighScore = false, gameMode = null, level = 1) {
+        // Darken with death-type color tint
+        const deathColors = {
+            OXYGEN: 'rgba(100, 150, 255, 0.15)',
+            DROWSINESS: 'rgba(100, 50, 150, 0.15)',
+            NO_CIGARETTES: 'rgba(150, 100, 50, 0.15)'
+        };
+        this.ctx.fillStyle = 'rgba(0, 0, 0, 0.85)';
         this.ctx.fillRect(0, 0, this.width, this.height);
 
-        // Game Over text
+        // Add color tint overlay
+        if (deathColors[deathCauseType]) {
+            this.ctx.fillStyle = deathColors[deathCauseType];
+            this.ctx.fillRect(0, 0, this.width, this.height);
+        }
+
+        // Death icon with glow effect
+        const icon = DEATH_ICONS[deathCauseType] || '( X_X )';
+        const glowPulse = Math.sin(this.time / 400) * 0.3 + 0.7;
+
+        // Icon glow
+        this.ctx.shadowColor = '#ff4444';
+        this.ctx.shadowBlur = 20 * glowPulse;
+        this.ctx.fillStyle = '#ff6666';
+        this.ctx.font = 'bold 36px monospace';
+        this.ctx.textAlign = 'center';
+        this.ctx.fillText(icon, this.width / 2, 70);
+        this.ctx.shadowBlur = 0;
+
+        // Game Over text with shake effect
+        const shakeX = Math.sin(this.time / 50) * 2;
+        const shakeY = Math.cos(this.time / 60) * 1;
         this.ctx.fillStyle = '#ff4444';
         this.ctx.font = 'bold 48px monospace';
-        this.ctx.textAlign = 'center';
-        this.ctx.fillText('GAME OVER', this.width / 2, 100);
+        this.ctx.fillText('GAME OVER', this.width / 2 + shakeX, 120 + shakeY);
 
         // Mode badge
         if (gameMode) {
@@ -1883,12 +1908,60 @@ export class RenderSystem {
             // Badge background
             this.ctx.fillStyle = badgeColor;
             const badgeWidth = isGaming ? 220 : 160;
-            this.ctx.fillRect(this.width / 2 - badgeWidth / 2, 115, badgeWidth, 24);
+            this.ctx.fillRect(this.width / 2 - badgeWidth / 2, 135, badgeWidth, 24);
 
             // Badge text
             this.ctx.fillStyle = textColor;
             this.ctx.font = 'bold 14px monospace';
-            this.ctx.fillText(badgeText, this.width / 2, 132);
+            this.ctx.fillText(badgeText, this.width / 2, 152);
+        }
+
+        // Death cause message box
+        const boxWidth = 500;
+        const boxHeight = 60;
+        const boxX = this.width / 2 - boxWidth / 2;
+        const boxY = 170;
+
+        // Death cause box background with gradient
+        const gradient = this.ctx.createLinearGradient(boxX, boxY, boxX, boxY + boxHeight);
+        gradient.addColorStop(0, 'rgba(60, 20, 20, 0.9)');
+        gradient.addColorStop(1, 'rgba(40, 10, 10, 0.9)');
+        this.ctx.fillStyle = gradient;
+        this.ctx.fillRect(boxX, boxY, boxWidth, boxHeight);
+
+        // Death cause box border
+        this.ctx.strokeStyle = '#ff4444';
+        this.ctx.lineWidth = 2;
+        this.ctx.strokeRect(boxX, boxY, boxWidth, boxHeight);
+
+        // Death cause text with typewriter effect styling
+        this.ctx.fillStyle = '#ffcccc';
+        this.ctx.font = 'bold 16px monospace';
+
+        // Word wrap the death cause if needed
+        const maxWidth = boxWidth - 40;
+        const words = deathCause.split(' ');
+        let lines = [];
+        let currentLine = '';
+
+        for (const word of words) {
+            const testLine = currentLine ? currentLine + ' ' + word : word;
+            const metrics = this.ctx.measureText(testLine);
+            if (metrics.width > maxWidth && currentLine) {
+                lines.push(currentLine);
+                currentLine = word;
+            } else {
+                currentLine = testLine;
+            }
+        }
+        lines.push(currentLine);
+
+        // Center the text vertically in the box
+        const lineHeight = 22;
+        const textStartY = boxY + (boxHeight - lines.length * lineHeight) / 2 + 16;
+
+        for (let i = 0; i < lines.length; i++) {
+            this.ctx.fillText(lines[i], this.width / 2, textStartY + i * lineHeight);
         }
 
         // New high score celebration
@@ -1897,45 +1970,52 @@ export class RenderSystem {
             this.ctx.font = 'bold 24px monospace';
             const pulse = Math.sin(this.time / 200) * 0.3 + 0.7;
             this.ctx.globalAlpha = pulse;
-            this.ctx.fillText('NEW HIGH SCORE!', this.width / 2, 165);
+            this.ctx.shadowColor = '#ffcc00';
+            this.ctx.shadowBlur = 15;
+            this.ctx.fillText('NEW HIGH SCORE!', this.width / 2, 260);
+            this.ctx.shadowBlur = 0;
             this.ctx.globalAlpha = 1;
         }
 
-        // Death cause
-        this.ctx.fillStyle = '#aaa';
-        this.ctx.font = '14px monospace';
-        this.ctx.fillText(deathCause, this.width / 2, 195);
+        // Stats section
+        const statsY = isNewHighScore ? 295 : 265;
 
-        // Stats
-        this.ctx.fillStyle = GAME_CONFIG.COLORS.TEXT;
-        this.ctx.font = '24px monospace';
-        this.ctx.fillText(`Final Score: ${formatScore(player.score)}`, this.width / 2, 240);
+        // Final score (bigger, prominent)
+        this.ctx.fillStyle = '#ffffff';
+        this.ctx.font = 'bold 28px monospace';
+        this.ctx.fillText(`Final Score: ${formatScore(player.score)}`, this.width / 2, statsY);
 
         if (!isNewHighScore && highScore > 0) {
             this.ctx.font = '14px monospace';
             this.ctx.fillStyle = '#888';
-            this.ctx.fillText(`High Score: ${formatScore(highScore)}`, this.width / 2, 268);
+            this.ctx.fillText(`High Score: ${formatScore(highScore)}`, this.width / 2, statsY + 28);
         }
 
-        this.ctx.fillStyle = GAME_CONFIG.COLORS.TEXT;
-        this.ctx.font = '18px monospace';
-        this.ctx.fillText(`Time Survived: ${formatTime(player.timeAlive)}`, this.width / 2, 310);
+        // Other stats in a more compact layout
+        const statLineY = statsY + (isNewHighScore || highScore === 0 ? 45 : 55);
+        this.ctx.fillStyle = '#aaaaaa';
         this.ctx.font = '14px monospace';
-        this.ctx.fillText(`Cigarettes Smoked: ${player.totalCigarettesSmoked}`, this.width / 2, 345);
-        this.ctx.fillText(`Beers Consumed: ${player.totalBeersConsumed.toFixed(1)}`, this.width / 2, 375);
+        this.ctx.fillText(
+            `Time: ${formatTime(player.timeAlive)}  |  Cigarettes: ${player.totalCigarettesSmoked}  |  Beers: ${player.totalBeersConsumed.toFixed(1)}`,
+            this.width / 2,
+            statLineY
+        );
 
-        // Restart prompt
+        // Restart prompt with glow
         this.ctx.font = 'bold 18px monospace';
-        this.ctx.fillStyle = '#fff';
         const blink = Math.sin(this.time / 300) > 0;
         if (blink) {
-            this.ctx.fillText('Press ENTER to Try Again', this.width / 2, 440);
+            this.ctx.fillStyle = '#ffffff';
+            this.ctx.shadowColor = '#ffffff';
+            this.ctx.shadowBlur = 10;
+            this.ctx.fillText('Press ENTER to Try Again', this.width / 2, statLineY + 60);
+            this.ctx.shadowBlur = 0;
         }
 
         // Navigation hint
         this.ctx.fillStyle = '#666';
         this.ctx.font = '12px monospace';
-        this.ctx.fillText('[L] View Leaderboard  |  [ESC] Main Menu', this.width / 2, 480);
+        this.ctx.fillText('[L] View Leaderboard  |  [ESC] Main Menu', this.width / 2, statLineY + 95);
     }
 
     // Draw CRT scanline effect
