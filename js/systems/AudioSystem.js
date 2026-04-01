@@ -58,7 +58,7 @@ export class AudioSystem {
 
             // Master volume
             this.masterGain = this.ctx.createGain();
-            this.masterGain.gain.value = 0.3;
+            this.masterGain.gain.value = 0.5;
             this.masterGain.connect(this.ctx.destination);
 
             // Music channel
@@ -68,7 +68,7 @@ export class AudioSystem {
 
             // SFX channel
             this.sfxGain = this.ctx.createGain();
-            this.sfxGain.gain.value = 0.6;
+            this.sfxGain.gain.value = 0.8;
             this.sfxGain.connect(this.masterGain);
 
             this.initialized = true;

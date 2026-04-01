@@ -139,6 +139,7 @@ export class Game {
 
     updateMenu() {
         if (this.input.isJustPressed(KEYS.START) || this.input.isJustPressed('enter')) {
+            this.audio.resume(); // Resume audio on first interaction
             this.state = GAME_STATES.MODE_SELECT;
         }
     }
@@ -146,11 +147,13 @@ export class Game {
     updateModeSelect() {
         // H for Hartz IV mode
         if (this.input.isJustPressed('h')) {
+            this.audio.resume(); // Ensure audio is resumed
             this.gameMode = GAME_MODES.HARTZ_IV;
             this.startGame();
         }
         // G for Gaming mode
         if (this.input.isJustPressed('g')) {
+            this.audio.resume(); // Ensure audio is resumed
             this.gameMode = GAME_MODES.GAMING;
             this.startGame();
         }
@@ -413,7 +416,7 @@ export class Game {
 
         // Check if score qualifies for leaderboard
         if (this.leaderboard.isOnLeaderboard(this.player.score)) {
-            // Go to name entry first
+            // Go directly to name entry (shows death message + name input combined)
             this.state = GAME_STATES.NAME_ENTRY;
             this.enteredName = this.leaderboard.getPlayerName();
             this.nameCursorBlink = 0;
@@ -523,7 +526,9 @@ export class Game {
                     this.enteredName,
                     cursorVisible,
                     this.player.score,
-                    this.isNewHighScore
+                    this.isNewHighScore,
+                    this.deathCause,
+                    this.deathCauseType
                 );
                 break;
 

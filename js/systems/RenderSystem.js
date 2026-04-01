@@ -2419,35 +2419,114 @@ export class RenderSystem {
         this.ctx.fillText(phaseName, this.width - 20, this.height - 35);
     }
 
-    // Draw name entry screen
-    drawNameEntry(currentName, cursorVisible, playerScore, isNewHighScore) {
-        // Darken background
+    // Draw name entry screen (combined with death message)
+    drawNameEntry(currentName, cursorVisible, playerScore, isNewHighScore, deathCause = '', deathCauseType = '') {
+        // Darken background with death-type color tint
+        const deathColors = {
+            OXYGEN: 'rgba(100, 150, 255, 0.15)',
+            DROWSINESS: 'rgba(100, 50, 150, 0.15)',
+            NO_CIGARETTES: 'rgba(150, 100, 50, 0.15)'
+        };
         this.ctx.fillStyle = 'rgba(0, 0, 0, 0.85)';
         this.ctx.fillRect(0, 0, this.width, this.height);
 
-        // Title
-        this.ctx.fillStyle = isNewHighScore ? '#ffcc00' : '#fff';
-        this.ctx.font = 'bold 32px monospace';
+        // Add color tint overlay
+        if (deathColors[deathCauseType]) {
+            this.ctx.fillStyle = deathColors[deathCauseType];
+            this.ctx.fillRect(0, 0, this.width, this.height);
+        }
+
         this.ctx.textAlign = 'center';
-        this.ctx.fillText(isNewHighScore ? 'NEW HIGH SCORE!' : 'ENTER YOUR NAME', this.width / 2, 150);
+
+        // Death icon with glow effect
+        if (deathCauseType) {
+            const icon = DEATH_ICONS[deathCauseType] || '( X_X )';
+            const glowPulse = Math.sin(this.time / 400) * 0.3 + 0.7;
+
+            this.ctx.shadowColor = '#ff4444';
+            this.ctx.shadowBlur = 20 * glowPulse;
+            this.ctx.fillStyle = '#ff6666';
+            this.ctx.font = 'bold 28px monospace';
+            this.ctx.fillText(icon, this.width / 2, 50);
+            this.ctx.shadowBlur = 0;
+        }
+
+        // Game Over text
+        const shakeX = Math.sin(this.time / 50) * 2;
+        const shakeY = Math.cos(this.time / 60) * 1;
+        this.ctx.fillStyle = '#ff4444';
+        this.ctx.font = 'bold 36px monospace';
+        this.ctx.fillText('GAME OVER', this.width / 2 + shakeX, 90 + shakeY);
+
+        // Death cause message
+        if (deathCause) {
+            this.ctx.fillStyle = '#ffcccc';
+            this.ctx.font = '14px monospace';
+
+            // Word wrap the death cause
+            const maxWidth = 450;
+            const words = deathCause.split(' ');
+            let lines = [];
+            let currentLine = '';
+
+            for (const word of words) {
+                const testLine = currentLine ? currentLine + ' ' + word : word;
+                const metrics = this.ctx.measureText(testLine);
+                if (metrics.width > maxWidth && currentLine) {
+                    lines.push(currentLine);
+                    currentLine = word;
+                } else {
+                    currentLine = testLine;
+                }
+            }
+            lines.push(currentLine);
+
+            for (let i = 0; i < lines.length; i++) {
+                this.ctx.fillText(lines[i], this.width / 2, 120 + i * 18);
+            }
+        }
+
+        // New high score celebration
+        if (isNewHighScore) {
+            this.ctx.fillStyle = '#ffcc00';
+            this.ctx.font = 'bold 20px monospace';
+            const pulse = Math.sin(this.time / 200) * 0.3 + 0.7;
+            this.ctx.globalAlpha = pulse;
+            this.ctx.shadowColor = '#ffcc00';
+            this.ctx.shadowBlur = 15;
+            this.ctx.fillText('NEW HIGH SCORE!', this.width / 2, 170);
+            this.ctx.shadowBlur = 0;
+            this.ctx.globalAlpha = 1;
+        }
 
         // Score display
+        this.ctx.fillStyle = '#ffffff';
+        this.ctx.font = 'bold 22px monospace';
+        const scoreY = isNewHighScore ? 200 : 175;
+        this.ctx.fillText(`Score: ${formatScore(playerScore)}`, this.width / 2, scoreY);
+
+        // Leaderboard qualification message
+        this.ctx.fillStyle = '#66ff66';
+        this.ctx.font = '16px monospace';
+        this.ctx.fillText('You made the leaderboard!', this.width / 2, scoreY + 30);
+
+        // Name entry section
         this.ctx.fillStyle = '#aaa';
-        this.ctx.font = '20px monospace';
-        this.ctx.fillText(`Score: ${formatScore(playerScore)}`, this.width / 2, 190);
+        this.ctx.font = '14px monospace';
+        this.ctx.fillText('Enter your name:', this.width / 2, scoreY + 65);
 
         // Name entry box
         const boxWidth = 280;
         const boxHeight = 50;
         const boxX = (this.width - boxWidth) / 2;
-        const boxY = 230;
+        const boxY = scoreY + 80;
 
         // Box background
         this.ctx.fillStyle = '#222';
         this.ctx.fillRect(boxX, boxY, boxWidth, boxHeight);
 
-        // Box border
-        this.ctx.strokeStyle = '#888';
+        // Box border with highlight
+        this.ctx.strokeStyle = '#66ff66';
         this.ctx.lineWidth = 2;
         this.ctx.strokeRect(boxX, boxY, boxWidth, boxHeight);
 
@@ -2461,14 +2540,9 @@ export class RenderSystem {
 
         // Instructions
         this.ctx.fillStyle = '#888';
-        this.ctx.font = '14px monospace';
-        this.ctx.fillText('Type your name (max 12 characters)', this.width / 2, boxY + 80);
-        this.ctx.fillText('Press ENTER to confirm  |  BACKSPACE to delete', this.width / 2, boxY + 105);
-
-        // Preview hint
-        this.ctx.fillStyle = '#666';
         this.ctx.font = '12px monospace';
-        this.ctx.fillText('Your name will appear on the leaderboard', this.width / 2, boxY + 140);
+        this.ctx.fillText('Type your name (max 12 characters)', this.width / 2, boxY + 70);
+        this.ctx.fillText('Press ENTER to confirm  |  BACKSPACE to delete', this.width / 2, boxY + 90);
     }
 
     // Draw mode selection screen
@@ -2512,14 +2586,14 @@ export class RenderSystem {
             '• Control inversions',
             '• Play forever (if skilled)'
         ];
+        this.ctx.textAlign = 'left';
         harzLines.forEach((line, i) => {
-            this.ctx.textAlign = 'left';
             this.ctx.fillText(line, harzX + 20, boxY + 100 + i * 16);
         });
+        this.ctx.textAlign = 'center';
 
         this.ctx.fillStyle = '#ffcc00';
         this.ctx.font = 'bold 16px monospace';
-        this.ctx.textAlign = 'center';
         this.ctx.fillText('[H] to Select', harzX + boxWidth / 2, boxY + boxHeight - 15);
 
         // Gaming Mode
@@ -2547,14 +2621,14 @@ export class RenderSystem {
             '• Higher score multipliers',
             '• How fast can you go?'
         ];
+        this.ctx.textAlign = 'left';
         gamingLines.forEach((line, i) => {
-            this.ctx.textAlign = 'left';
             this.ctx.fillText(line, gamingX + 20, boxY + 100 + i * 16);
         });
+        this.ctx.textAlign = 'center';
 
         this.ctx.fillStyle = '#ff4444';
         this.ctx.font = 'bold 16px monospace';
-        this.ctx.textAlign = 'center';
         this.ctx.fillText('[G] to Select', gamingX + boxWidth / 2, boxY + boxHeight - 15);
 
         // Back hint
