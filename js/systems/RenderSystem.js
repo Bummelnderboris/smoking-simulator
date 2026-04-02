@@ -2438,25 +2438,12 @@ export class RenderSystem {
 
         this.ctx.textAlign = 'center';
 
-        // Death icon with glow effect
-        if (deathCauseType) {
-            const icon = DEATH_ICONS[deathCauseType] || '( X_X )';
-            const glowPulse = Math.sin(this.time / 400) * 0.3 + 0.7;
-
-            this.ctx.shadowColor = '#ff4444';
-            this.ctx.shadowBlur = 20 * glowPulse;
-            this.ctx.fillStyle = '#ff6666';
-            this.ctx.font = 'bold 28px monospace';
-            this.ctx.fillText(icon, this.width / 2, 50);
-            this.ctx.shadowBlur = 0;
-        }
-
         // Game Over text
         const shakeX = Math.sin(this.time / 50) * 2;
         const shakeY = Math.cos(this.time / 60) * 1;
         this.ctx.fillStyle = '#ff4444';
         this.ctx.font = 'bold 36px monospace';
-        this.ctx.fillText('GAME OVER', this.width / 2 + shakeX, 90 + shakeY);
+        this.ctx.fillText('GAME OVER', this.width / 2 + shakeX, 70 + shakeY);
 
         // Death cause message
         if (deathCause) {
